@@ -12,7 +12,10 @@
     "types": [
       "chrome"
     ],
-    "isolatedModules": false
+    "isolatedModules": false,
+    "sourceMap": true,
+    "inlineSourceMap": false,
+    "inlineSources": true
   },
   "include": [
     "src/**/*"

@@ -2,8 +2,9 @@ export {};
 
 declare global {
   interface Message {
-    action: "performAction";
+    action: "performAction" | "processSelectedText";
     type?: "getData";
+    text?: string;
   }
 
   interface ActionResponse {

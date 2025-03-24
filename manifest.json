@@ -5,7 +5,8 @@
   "description": "A Chrome extension boilerplate",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "contextMenus"
   ],
   "action": {
     "default_popup": "popup.html",
