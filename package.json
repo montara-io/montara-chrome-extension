@@ -1,0 +1,13 @@
+{
+  "name": "montara-chrome-extension",
+  "version": "1.0.0",
+  "description": "A Chrome extension boilerplate",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "typescript": "^5.0.0"
+  }
+}
