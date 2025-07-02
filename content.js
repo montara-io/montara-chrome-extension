@@ -1,5 +1,15 @@
 // Content script for Montara Chrome Extension
 // This script runs on every webpage
+const MontaraData = {
+  UrlParams: {
+    MontaraExtensionRedirectUrl: "MontaraExtensionRedirectUrl",
+    MontaraToken: "MontaraToken",
+  },
+  PostMessageType: {
+    MONTARA_TOKEN: "montara_montaraToken",
+    MONTARA_OPEN_OAUTH_POPUP: "montara_openOAuthPopup",
+  },
+};
 
 function renderMontaraIframe() {
   const iframe = document.createElement("iframe");
@@ -35,85 +45,43 @@ function handleIframeMessage(event) {
 
   console.log("Message received from iframe:", event.data);
 
-  // Handle storage requests from iframe
-  if (event.data.type === "getStorage") {
-    chrome.storage.local.get(null, function (items) {
-      sendMessageToIframe({
-        type: "storageData",
-        data: items,
-      });
-    });
-  }
-
   // Handle OAuth-related messages from iframe
-  if (event.data.type === "montara_openOAuthPopup") {
-    // openOAuthPopup(event.data.payload.url);
-    showNotification({
-      text: "Please log in to Montara to continue",
-      ctaText: "Log in",
-      onCtaClick: () => {
-        const url = new URL("http://localhost:3000");
-        url.searchParams.set(
-          "MontaraExtensionRedirectUrl",
-          encodeURIComponent(window.location.href)
-        );
-        window.location.href = url.toString();
-      },
-      duration: 60000,
-    });
-  }
-
-  if (event.data.type === "oauthResult") {
-    handleOAuthResult(event.data.result);
+  if (
+    event.data.type === MontaraData.PostMessageType.MONTARA_OPEN_OAUTH_POPUP
+  ) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const montaraToken = urlParams.get(MontaraData.UrlParams.MontaraToken);
+    if (montaraToken) {
+      sendMessageToIframe({
+        type: MontaraData.PostMessageType.MONTARA_TOKEN,
+        payload: {
+          montaraToken,
+        },
+      });
+    } else {
+      showNotification({
+        text: "Please log in to Montara to continue",
+        ctaText: "Log in",
+        onCtaClick: () => {
+          const url = new URL("http://localhost:3000");
+          url.searchParams.set(
+            MontaraData.UrlParams.MontaraExtensionRedirectUrl,
+            encodeURIComponent(window.location.href)
+          );
+          window.location.href = url.toString();
+        },
+        duration: 60000,
+      });
+    }
   }
 }
 
-function sendMessageToIframe(message) {
+function sendMessageToIframe({type, payload}) {
   if (window.montaraIframe && window.montaraIframe.contentWindow) {
-    window.montaraIframe.contentWindow.postMessage(message, "*");
+    window.montaraIframe.contentWindow.postMessage({type, payload}, "*");
   } else {
     console.warn("Iframe not ready for communication");
   }
-}
-
-function openOAuthPopup(url) {
-  console.log("Opening OAuth popup with URL:", url);
-
-  // Open popup window
-  const popup = window.open(
-    url,
-    "oauth_popup",
-    "width=500,height=600,scrollbars=yes,resizable=yes"
-  );
-
-  // Listen for popup close or message
-  const checkClosed = setInterval(() => {
-    if (popup.closed) {
-      clearInterval(checkClosed);
-      console.log("OAuth popup closed");
-
-      // Notify iframe that popup was closed
-      sendMessageToIframe({
-        type: "oauthPopupClosed",
-      });
-    }
-  }, 1000);
-
-  // Listen for messages from popup (if it sends any)
-  window.addEventListener("message", function popupMessageHandler(event) {
-    if (event.source === popup) {
-      console.log("Message from OAuth popup:", event.data);
-
-      // Handle OAuth result from popup
-      if (event.data.type === "oauthResult") {
-        clearInterval(checkClosed);
-        popup.close();
-        window.removeEventListener("message", popupMessageHandler);
-
-        handleOAuthResult(event.data.result);
-      }
-    }
-  });
 }
 
 function handleOAuthResult(result) {
@@ -181,34 +149,10 @@ function initializeExtension() {
 
   // Add your content script logic here
   // Example: Modify page content, add event listeners, etc.
-
-  // Example: Add a simple notification
-  const notification = document.createElement("div");
-  notification.id = "montara-notification";
-  notification.textContent = "Montara Extension Active";
-  notification.style.cssText = `
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: #4CAF50;
-    color: white;
-    padding: 10px 15px;
-    border-radius: 5px;1
-    z-index: 10000;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  `;
-
-  document.body.appendChild(notification);
-
-  // Remove notification after 3 seconds
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 3000);
-
+  showNotification({
+    text: "Montara Extension Active",
+    duration: 3000,
+  });
   renderMontaraIframe();
 }
 
@@ -218,23 +162,3 @@ if (document.readyState === "loading") {
 } else {
   initializeExtension();
 }
-
-// Listen for messages from other parts of the extension (if needed)
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Message received in content script:", request);
-
-  // Handle different message types
-  switch (request.action) {
-    case "getPageInfo":
-      sendResponse({
-        title: document.title,
-        url: window.location.href,
-        timestamp: new Date().toISOString(),
-      });
-      break;
-    default:
-      sendResponse({status: "unknown action"});
-  }
-
-  return true; // Keep message channel open for async response
-});
