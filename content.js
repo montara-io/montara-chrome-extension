@@ -47,7 +47,20 @@ function handleIframeMessage(event) {
 
   // Handle OAuth-related messages from iframe
   if (event.data.type === "montara_openOAuthPopup") {
-    openOAuthPopup(event.data.payload.url);
+    // openOAuthPopup(event.data.payload.url);
+    showNotification({
+      text: "Please log in to Montara to continue",
+      ctaText: "Log in",
+      onCtaClick: () => {
+        const url = new URL("http://localhost:3000");
+        url.searchParams.set(
+          "MontaraExtensionRedirectUrl",
+          encodeURIComponent(window.location.href)
+        );
+        window.location.href = url.toString();
+      },
+      duration: 60000,
+    });
   }
 
   if (event.data.type === "oauthResult") {
@@ -128,6 +141,39 @@ function handleOAuthResult(result) {
     type: "oauthResultReceived",
     result: result,
   });
+}
+
+function showNotification({text, ctaText, onCtaClick, duration = 3000}) {
+  const notification = document.createElement("div");
+  notification.id = "montara-notification";
+  notification.textContent = text;
+  notification.style.cssText = `
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: #4CAF50;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    z-index: 10000;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  `;
+  if (ctaText && onCtaClick) {
+    const ctaButton = document.createElement("button");
+    ctaButton.textContent = ctaText;
+    ctaButton.addEventListener("click", onCtaClick);
+    notification.appendChild(ctaButton);
+  }
+  document.body.appendChild(notification);
+
+  // Remove notification after 3 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, duration);
 }
 
 function initializeExtension() {
