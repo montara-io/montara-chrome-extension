@@ -7,8 +7,10 @@ const MontaraData = {
   },
   PostMessageType: {
     MONTARA_TOKEN: "montara_montaraToken",
-    MONTARA_OPEN_OAUTH_POPUP: "montara_openOAuthPopup",
+    IS_LOGGED_OUT: "montara_isLoggedOut",
+    CATALOG_DATA: "montara_catalogData",
   },
+  CatalogData: [],
 };
 
 function renderMontaraIframe() {
@@ -46,33 +48,22 @@ function handleIframeMessage(event) {
   console.log("Message received from iframe:", event.data);
 
   // Handle OAuth-related messages from iframe
-  if (
-    event.data.type === MontaraData.PostMessageType.MONTARA_OPEN_OAUTH_POPUP
-  ) {
-    const urlParams = new URLSearchParams(window.location.search);
-    const montaraToken = urlParams.get(MontaraData.UrlParams.MontaraToken);
-    if (montaraToken) {
-      sendMessageToIframe({
-        type: MontaraData.PostMessageType.MONTARA_TOKEN,
-        payload: {
-          montaraToken,
-        },
-      });
-    } else {
-      showNotification({
-        text: "Please log in to Montara to continue",
-        ctaText: "Log in",
-        onCtaClick: () => {
-          const url = new URL("http://localhost:3000");
-          url.searchParams.set(
-            MontaraData.UrlParams.MontaraExtensionRedirectUrl,
-            encodeURIComponent(window.location.href)
-          );
-          window.location.href = url.toString();
-        },
-        duration: 60000,
-      });
-    }
+  if (event.data.type === MontaraData.PostMessageType.IS_LOGGED_OUT) {
+    showNotification({
+      text: "Please log in to Montara to continue",
+      ctaText: "Log in",
+      onCtaClick: () => {
+        const url = new URL("http://localhost:3000");
+        url.searchParams.set(
+          MontaraData.UrlParams.MontaraExtensionRedirectUrl,
+          encodeURIComponent(window.location.href)
+        );
+        window.location.href = url.toString();
+      },
+      duration: 60000,
+    });
+  } else if (event.data.type === MontaraData.PostMessageType.CATALOG_DATA) {
+    MontaraData.CatalogData = event.data.payload;
   }
 }
 
@@ -82,33 +73,6 @@ function sendMessageToIframe({type, payload}) {
   } else {
     console.warn("Iframe not ready for communication");
   }
-}
-
-function handleOAuthResult(result) {
-  console.log("Handling OAuth result:", result);
-
-  // Store OAuth tokens securely
-  if (result.access_token) {
-    chrome.storage.local.set(
-      {
-        oauthToken: result.access_token,
-        oauthRefreshToken: result.refresh_token,
-        oauthExpiresAt: result.expires_in
-          ? Date.now() + result.expires_in * 1000
-          : null,
-        oauthUser: result.user,
-      },
-      function () {
-        console.log("OAuth tokens stored successfully");
-      }
-    );
-  }
-
-  // Send result back to iframe
-  sendMessageToIframe({
-    type: "oauthResultReceived",
-    result: result,
-  });
 }
 
 function showNotification({text, ctaText, onCtaClick, duration = 3000}) {
@@ -154,6 +118,18 @@ function initializeExtension() {
     duration: 3000,
   });
   renderMontaraIframe();
+  const urlParams = new URLSearchParams(window.location.search);
+  const montaraToken = decodeURIComponent(
+    urlParams.get(MontaraData.UrlParams.MontaraToken)
+  );
+  if (montaraToken) {
+    sendMessageToIframe({
+      type: MontaraData.PostMessageType.MONTARA_TOKEN,
+      payload: {
+        montaraToken,
+      },
+    });
+  }
 }
 
 // Run initialization when DOM is ready
