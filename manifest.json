@@ -13,7 +13,9 @@
       "matches": [
         "*://localhost/*",
         "file://*",
-        "http://127.0.0.1/*"
+        "http://127.0.0.1/*",
+        "*://*.snowflakecomputing.com/*",
+        "*://*.snowflake.com/*"
       ],
       "js": [
         "content.js"

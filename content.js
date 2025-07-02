@@ -50,8 +50,6 @@ function handleIframeMessage(event) {
   //   return;
   // }
 
-  console.log("Message received from iframe:", event.data);
-
   // Handle OAuth-related messages from iframe
   if (event.data.type === MontaraData.PostMessageType.IS_LOGGED_OUT) {
     showNotification({
@@ -87,7 +85,6 @@ function sendMessageToIframe({type, payload}) {
 function showNotification({text, ctaText, onCtaClick, duration = 3000}) {
   const notification = document.createElement("div");
   notification.id = "montara-notification";
-  notification.textContent = text;
   notification.style.cssText = `
     position: fixed;
     top: 10px;
@@ -100,21 +97,96 @@ function showNotification({text, ctaText, onCtaClick, duration = 3000}) {
     font-family: Arial, sans-serif;
     font-size: 14px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 400px;
   `;
-  if (ctaText && onCtaClick) {
-    const ctaButton = document.createElement("button");
-    ctaButton.textContent = ctaText;
-    ctaButton.addEventListener("click", onCtaClick);
-    notification.appendChild(ctaButton);
-  }
-  document.body.appendChild(notification);
 
-  // Remove notification after 3 seconds
-  setTimeout(() => {
+  // Create text container
+  const textContainer = document.createElement("div");
+  textContainer.textContent = text;
+  textContainer.style.cssText = `
+    flex: 1;
+    word-wrap: break-word;
+  `;
+  notification.appendChild(textContainer);
+
+  // Create close button
+  const closeButton = document.createElement("button");
+  closeButton.innerHTML = "&times;";
+  closeButton.style.cssText = `
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+  `;
+
+  closeButton.addEventListener("mouseenter", () => {
+    closeButton.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
+  });
+
+  closeButton.addEventListener("mouseleave", () => {
+    closeButton.style.backgroundColor = "transparent";
+  });
+
+  closeButton.addEventListener("click", () => {
     if (notification.parentNode) {
       notification.parentNode.removeChild(notification);
     }
-  }, duration);
+  });
+
+  notification.appendChild(closeButton);
+
+  // Add CTA button if provided
+  if (ctaText && onCtaClick) {
+    const ctaButton = document.createElement("button");
+    ctaButton.textContent = ctaText;
+    ctaButton.style.cssText = `
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+    `;
+
+    ctaButton.addEventListener("mouseenter", () => {
+      ctaButton.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
+    });
+
+    ctaButton.addEventListener("mouseleave", () => {
+      ctaButton.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
+    });
+
+    ctaButton.addEventListener("click", onCtaClick);
+    notification.appendChild(ctaButton);
+  }
+
+  document.body.appendChild(notification);
+
+  // Remove notification after specified duration (unless manually closed)
+  if (duration > 0) {
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, duration);
+  }
 }
 
 function createDropdownContainer() {
