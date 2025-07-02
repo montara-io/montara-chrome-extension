@@ -11,6 +11,11 @@ const MontaraData = {
     CATALOG_DATA: "montara_catalogData",
   },
   CatalogData: [],
+  state: {
+    isDropdownVisible: false,
+    lastActiveElement: null,
+    lastSelectionStart: null,
+  },
 };
 
 function renderMontaraIframe() {
@@ -64,6 +69,10 @@ function handleIframeMessage(event) {
     });
   } else if (event.data.type === MontaraData.PostMessageType.CATALOG_DATA) {
     MontaraData.CatalogData = event.data.payload;
+    showNotification({
+      text: "Catalog data received",
+      duration: 3000,
+    });
   }
 }
 
@@ -108,6 +117,112 @@ function showNotification({text, ctaText, onCtaClick, duration = 3000}) {
   }, duration);
 }
 
+function createDropdownContainer() {
+  const container = document.createElement("div");
+  container.id = "montara-dropdown-container";
+  document.body.appendChild(container);
+  return container;
+}
+function showDropdown(x, y, activeElement, selectionStart) {
+  if (!MontaraData.state.dropdownContainer) {
+    MontaraData.state.dropdownContainer = createDropdownContainer();
+    MontaraData.state.dropdownRoot = createRoot(
+      MontaraData.state.dropdownContainer
+    );
+  }
+  MontaraData.state.lastActiveElement = activeElement;
+  MontaraData.state.lastSelectionStart = selectionStart ?? null;
+  dropdownRoot.render(
+    <SqlModelDropdown
+      position={{x, y}}
+      onClose={hideDropdown}
+      activeElement={activeElement}
+      selectionStart={selectionStart}
+    />
+  );
+  MontaraData.state.isDropdownVisible = true;
+}
+
+function isEditableElement(element) {
+  return element.tagName === "TEXTAREA" || element.contentEditable === "true";
+}
+function handleInput(event) {
+  let target = event.target;
+  if (target && isEditableElement(target)) {
+    // For contenteditable, always use the root
+    if (target.contentEditable === "true") {
+      const root = getRootContentEditable(target) || target;
+      const text = root.textContent || "";
+      const selectionStart = getContentEditableSelectionOffset(root);
+      if (checkForTrigger(text, selectionStart)) {
+        const position = getCursorPosition(root);
+        showDropdown(position.x, position.y, root, selectionStart);
+      } else {
+        hideDropdown();
+      }
+      return;
+    }
+    // For textarea
+    const text = target.textContent || target.value;
+    let selectionStart = undefined;
+    if (target instanceof HTMLTextAreaElement) {
+      selectionStart = target.selectionStart;
+    }
+    if (checkForTrigger(text, selectionStart)) {
+      const position = getCursorPosition(target);
+      showDropdown(position.x, position.y, target, selectionStart);
+    } else {
+      hideDropdown();
+    }
+  }
+}
+
+function handleKeyDown(event) {
+  let activeElement = document.activeElement;
+  if (activeElement && isEditableElement(activeElement)) {
+    if (activeElement.contentEditable === "true") {
+      const root = getRootContentEditable(activeElement) || activeElement;
+      const text = root.textContent || "";
+      const selectionStart = getContentEditableSelectionOffset(root);
+      if (checkForTrigger(text, selectionStart)) {
+        const position = getCursorPosition(root);
+        showDropdown(position.x, position.y, root, selectionStart);
+      }
+      return;
+    }
+    // For textarea
+    const text = activeElement.textContent || activeElement.value;
+    let selectionStart = undefined;
+    if (activeElement instanceof HTMLTextAreaElement) {
+      selectionStart = activeElement.selectionStart;
+    }
+    if (checkForTrigger(text, selectionStart)) {
+      const position = getCursorPosition(activeElement);
+      showDropdown(position.x, position.y, activeElement, selectionStart);
+    }
+  }
+}
+
+function handleClick(event) {
+  if (
+    MontaraData.state.isDropdownVisible &&
+    dropdownContainer &&
+    !dropdownContainer.contains(event.target)
+  ) {
+    hideDropdown();
+  }
+}
+
+function subscribeToDropdownEvents() {
+  document.addEventListener("input", handleInput);
+  document.addEventListener("keydown", handleKeyDown);
+  document.addEventListener("click", handleClick);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && isDropdownVisible) {
+      hideDropdown();
+    }
+  });
+}
 function initializeExtension() {
   console.log("Montara Chrome Extension loaded");
 
@@ -130,6 +245,7 @@ function initializeExtension() {
       },
     });
   }
+  subscribeToDropdownEvents();
 }
 
 // Run initialization when DOM is ready
