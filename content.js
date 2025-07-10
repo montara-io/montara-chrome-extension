@@ -13,6 +13,7 @@ const MontaraData = {
     isDropdownVisible: false,
     lastActiveElement: null,
     lastSelectionStart: null,
+    originalEditorElement: null, // Add this new property to store the original editor
   },
 };
 
@@ -189,6 +190,7 @@ function showDropdown(x, y, activeElement, selectionStart) {
 
   MontaraData.state.lastActiveElement = activeElement;
   MontaraData.state.lastSelectionStart = selectionStart ?? null;
+  MontaraData.state.originalEditorElement = activeElement; // Store the original editor element
 
   renderDropdown(MontaraData.catalogData, x, y);
   MontaraData.state.isDropdownVisible = true;
@@ -351,19 +353,83 @@ function renderDropdown(items, x, y) {
 }
 
 function insertTextAtCursor(text) {
-  const activeElement = MontaraData.state.lastActiveElement;
+  // Use the original editor element instead of lastActiveElement to avoid targeting the dropdown
+  const activeElement =
+    MontaraData.state.originalEditorElement ||
+    MontaraData.state.lastActiveElement;
   const selectionStart = MontaraData.state.lastSelectionStart;
 
-  if (!activeElement) return;
+  if (!activeElement) {
+    console.log("Montara: No active element found for text insertion");
+    return;
+  }
 
-  // Try CodeMirror editor
+  console.log(
+    "Montara: Attempting to insert text into element:",
+    activeElement
+  );
+
+  // First, try to find a CodeMirror instance in the active element or its children
+  let codeMirrorInstance = null;
+
+  // Check if the active element itself has CodeMirror
   if (activeElement.CodeMirror) {
-    const cm = activeElement.CodeMirror;
+    codeMirrorInstance = activeElement.CodeMirror;
+    console.log(
+      "Montara: Found CodeMirror instance directly on active element"
+    );
+  }
+
+  // If not found, search for CodeMirror in children
+  if (!codeMirrorInstance) {
+    const cmElement = activeElement.querySelector(
+      '.CodeMirror, [class*="cm-"]'
+    );
+    if (cmElement && cmElement.CodeMirror) {
+      codeMirrorInstance = cmElement.CodeMirror;
+      console.log("Montara: Found CodeMirror instance in child element");
+    }
+  }
+
+  // If still not found, search more broadly for any CodeMirror instance
+  if (!codeMirrorInstance) {
+    const allElements = document.querySelectorAll(
+      '.CodeMirror, [class*="cm-"]'
+    );
+    for (const element of allElements) {
+      if (
+        element.CodeMirror &&
+        element.offsetWidth > 0 &&
+        element.offsetHeight > 0
+      ) {
+        codeMirrorInstance = element.CodeMirror;
+        console.log("Montara: Found CodeMirror instance in visible element");
+        break;
+      }
+    }
+  }
+
+  // Handle CodeMirror editor (including Snowflake)
+  if (codeMirrorInstance) {
+    console.log("Montara: Using CodeMirror for text insertion");
+    const cm = codeMirrorInstance;
     const cursor = cm.getCursor();
 
+    console.log("Montara: Current cursor position:", cursor);
+    console.log("Montara: Current line content:", cm.getLine(cursor.line));
+
     // Remove the @@ trigger and insert the text
-    const from = {line: cursor.line, ch: cursor.ch - 2};
+    const from = {line: cursor.line, ch: Math.max(0, cursor.ch - 2)};
     const to = {line: cursor.line, ch: cursor.ch};
+
+    console.log(
+      "Montara: Replacing range from",
+      from,
+      "to",
+      to,
+      "with text:",
+      text
+    );
 
     cm.replaceRange(text, from, to);
 
@@ -373,86 +439,14 @@ function insertTextAtCursor(text) {
 
     // Focus the editor
     cm.focus();
+
+    console.log("Montara: Text insertion completed via CodeMirror");
     return;
   }
 
-  // Try Ace editor
-  if (activeElement.env && activeElement.env.editor) {
-    const aceEditor = activeElement.env.editor;
-    const session = aceEditor.getSession();
-    const cursor = aceEditor.getCursorPosition();
-    const line = session.getLine(cursor.row);
-    const newLine =
-      line.substring(0, cursor.column - 2) +
-      text +
-      line.substring(cursor.column);
-    session.replace(
-      new ace.Range(cursor.row, 0, cursor.row, line.length),
-      newLine
-    );
-    aceEditor.setCursorPosition(cursor.row, cursor.column - 2 + text.length);
-    return;
-  }
-
-  // Try PrismJS editor
-  if (
-    activeElement.classList &&
-    activeElement.classList.contains("prism-editor")
-  ) {
-    const prismEditor = activeElement.__prism;
-    if (prismEditor) {
-      const cursor = prismEditor.getCursor();
-      const line = prismEditor.getLine(cursor.line);
-      const newLine =
-        line.substring(0, cursor.ch - 2) + text + line.substring(cursor.ch);
-      prismEditor.replaceRange(
-        newLine,
-        {line: cursor.line, ch: 0},
-        {line: cursor.line, ch: line.length}
-      );
-      prismEditor.setCursor({
-        line: cursor.line,
-        ch: cursor.ch - 2 + text.length,
-      });
-      return;
-    }
-  }
-
-  // Try custom Snowflake editor (look for common patterns)
-  if (
-    activeElement.classList &&
-    (activeElement.classList.contains("snowflake-editor") ||
-      activeElement.classList.contains("sql-editor") ||
-      activeElement.classList.contains("code-editor") ||
-      activeElement.getAttribute("data-testid")?.includes("editor") ||
-      activeElement.getAttribute("data-testid")?.includes("sql"))
-  ) {
-    // Try to find CodeMirror instance within the element
-    const cmElement = activeElement.querySelector(
-      '.CodeMirror, [class*="cm-"]'
-    );
-    if (cmElement && cmElement.CodeMirror) {
-      const cm = cmElement.CodeMirror;
-      const cursor = cm.getCursor();
-
-      // Remove the @@ trigger and insert the text
-      const from = {line: cursor.line, ch: cursor.ch - 2};
-      const to = {line: cursor.line, ch: cursor.ch};
-
-      cm.replaceRange(text, from, to);
-
-      // Set cursor position after the inserted text
-      const newCursor = {line: cursor.line, ch: from.ch + text.length};
-      cm.setCursor(newCursor);
-
-      // Focus the editor
-      cm.focus();
-      return;
-    }
-  }
-
+  // Handle contenteditable elements
   if (activeElement.contentEditable === "true") {
-    // For contenteditable elements
+    console.log("Montara: Using contenteditable for text insertion");
     const selection = window.getSelection();
     if (selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
@@ -462,8 +456,10 @@ function insertTextAtCursor(text) {
       selection.removeAllRanges();
       selection.addRange(range);
     }
-  } else if (activeElement instanceof HTMLTextAreaElement) {
-    // For textarea elements
+  }
+  // Handle textarea elements
+  else if (activeElement instanceof HTMLTextAreaElement) {
+    console.log("Montara: Using textarea for text insertion");
     const value = activeElement.value;
     const before = value.substring(0, selectionStart - 2); // Remove the @@ trigger
     const after = value.substring(selectionStart);
@@ -472,8 +468,10 @@ function insertTextAtCursor(text) {
       before.length + text.length,
       before.length + text.length
     );
-  } else if (activeElement instanceof HTMLInputElement) {
-    // For input elements
+  }
+  // Handle input elements
+  else if (activeElement instanceof HTMLInputElement) {
+    console.log("Montara: Using input for text insertion");
     const value = activeElement.value;
     const before = value.substring(0, selectionStart - 2);
     const after = value.substring(selectionStart);
@@ -482,6 +480,34 @@ function insertTextAtCursor(text) {
       before.length + text.length,
       before.length + text.length
     );
+  }
+  // Fallback: try to find any editable element that might work
+  else {
+    console.log("Montara: Trying fallback text insertion methods");
+
+    // Try to find any CodeMirror instance on the page
+    const allCodeMirrors = document.querySelectorAll(
+      '.CodeMirror, [class*="cm-"]'
+    );
+    for (const element of allCodeMirrors) {
+      if (
+        element.CodeMirror &&
+        element.offsetWidth > 0 &&
+        element.offsetHeight > 0
+      ) {
+        console.log("Montara: Found fallback CodeMirror instance");
+        const cm = element.CodeMirror;
+        const cursor = cm.getCursor();
+        const from = {line: cursor.line, ch: Math.max(0, cursor.ch - 2)};
+        const to = {line: cursor.line, ch: cursor.ch};
+        cm.replaceRange(text, from, to);
+        cm.setCursor({line: cursor.line, ch: from.ch + text.length});
+        cm.focus();
+        return;
+      }
+    }
+
+    console.log("Montara: No suitable editor found for text insertion");
   }
 
   // Trigger input event to notify any listeners
@@ -496,16 +522,6 @@ function isEditableElement(element) {
 
   // CodeMirror
   if (element.CodeMirror) {
-    return true;
-  }
-
-  // Ace Editor
-  if (element.env && element.env.editor) {
-    return true;
-  }
-
-  // PrismJS Editor
-  if (element.classList && element.classList.contains("prism-editor")) {
     return true;
   }
 
@@ -565,26 +581,6 @@ function handleInput(event) {
       return;
     }
 
-    // For Ace Editor
-    if (target.env && target.env.editor) {
-      const aceEditor = target.env.editor;
-      const cursor = aceEditor.getCursorPosition();
-      const line = aceEditor.getSession().getLine(cursor.row);
-      const beforeCursor = line.substring(0, cursor.column);
-      const lastTwoChars = beforeCursor.slice(-2);
-
-      if (lastTwoChars === "@@") {
-        const coords = aceEditor.renderer.textToScreenCoordinates(
-          cursor.row,
-          cursor.column
-        );
-        showDropdown(coords.pageX, coords.pageY + 20, target, cursor.column);
-      } else {
-        hideDropdown();
-      }
-      return;
-    }
-
     // For textarea and input elements
     const text = target.textContent || target.value;
     let selectionStart = undefined;
@@ -632,29 +628,6 @@ function handleKeyDown(event) {
       return;
     }
 
-    // For Ace Editor
-    if (activeElement.env && activeElement.env.editor) {
-      const aceEditor = activeElement.env.editor;
-      const cursor = aceEditor.getCursorPosition();
-      const line = aceEditor.getSession().getLine(cursor.row);
-      const beforeCursor = line.substring(0, cursor.column);
-      const lastTwoChars = beforeCursor.slice(-2);
-
-      if (lastTwoChars === "@@") {
-        const coords = aceEditor.renderer.textToScreenCoordinates(
-          cursor.row,
-          cursor.column
-        );
-        showDropdown(
-          coords.pageX,
-          coords.pageY + 20,
-          activeElement,
-          cursor.column
-        );
-      }
-      return;
-    }
-
     // For textarea and input elements
     const text = activeElement.textContent || activeElement.value;
     let selectionStart = undefined;
@@ -676,6 +649,8 @@ function hideDropdown() {
     MontaraData.state.dropdownContainer.innerHTML = "";
   }
   MontaraData.state.isDropdownVisible = false;
+  // Clear the original editor element when dropdown is hidden
+  MontaraData.state.originalEditorElement = null;
 }
 
 function handleClick(event) {
@@ -703,11 +678,6 @@ function subscribeToDropdownEvents() {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          // Check if the added node is an editor or contains editors
-          if (isEditableElement(node)) {
-            console.log("Montara: Detected new editor element", node);
-          }
-
           // Check for editors within the added node
           const editors =
             node.querySelectorAll &&
@@ -742,16 +712,41 @@ function initializeExtension() {
   // Set up CodeMirror integration for Snowflake
   setupCodeMirrorIntegration();
 
-  // Also try to detect Snowflake editor immediately
-  setTimeout(() => {
+  // Also try to detect Snowflake editor immediately and periodically
+  function setupSnowflakeEditor() {
     const snowflakeEditor = detectSnowflakeEditor();
     if (snowflakeEditor) {
       console.log("Montara: Snowflake editor detected, setting up integration");
       if (snowflakeEditor.CodeMirror) {
         setupCodeMirrorListeners(snowflakeEditor.CodeMirror);
       }
+
+      // Also check for CodeMirror instances within the editor
+      const cmElement = snowflakeEditor.querySelector(
+        '.CodeMirror, [class*="cm-"]'
+      );
+      if (cmElement && cmElement.CodeMirror) {
+        setupCodeMirrorListeners(cmElement.CodeMirror);
+      }
     }
-  }, 1000);
+  }
+
+  // Try immediately
+  setupSnowflakeEditor();
+
+  // Try after a delay
+  setTimeout(setupSnowflakeEditor, 1000);
+  setTimeout(setupSnowflakeEditor, 3000);
+  setTimeout(setupSnowflakeEditor, 5000);
+
+  // Also set up a periodic check for the first minute
+  const checkInterval = setInterval(() => {
+    setupSnowflakeEditor();
+  }, 2000);
+
+  setTimeout(() => {
+    clearInterval(checkInterval);
+  }, 60000);
 }
 
 // Global function to set up CodeMirror listeners
@@ -767,8 +762,16 @@ function setupCodeMirrorListeners(cm) {
     const beforeCursor = line.substring(0, cursor.ch);
     const lastTwoChars = beforeCursor.slice(-2);
 
+    console.log("Montara: CodeMirror change detected:", {
+      cursor: cursor,
+      line: line,
+      beforeCursor: beforeCursor,
+      lastTwoChars: lastTwoChars,
+    });
+
     if (lastTwoChars === "@@") {
       const coords = cm.cursorCoords(cursor);
+      console.log("Montara: @@ trigger detected, showing dropdown at:", coords);
       showDropdown(
         coords.left,
         coords.bottom + 5,
@@ -787,8 +790,19 @@ function setupCodeMirrorListeners(cm) {
     const beforeCursor = line.substring(0, cursor.ch);
     const lastTwoChars = beforeCursor.slice(-2);
 
+    console.log("Montara: CodeMirror cursor activity:", {
+      cursor: cursor,
+      line: line,
+      beforeCursor: beforeCursor,
+      lastTwoChars: lastTwoChars,
+    });
+
     if (lastTwoChars === "@@") {
       const coords = cm.cursorCoords(cursor);
+      console.log(
+        "Montara: @@ trigger detected in cursor activity, showing dropdown at:",
+        coords
+      );
       showDropdown(
         coords.left,
         coords.bottom + 5,
@@ -797,6 +811,22 @@ function setupCodeMirrorListeners(cm) {
       );
     } else {
       hideDropdown();
+    }
+  });
+
+  // Listen for keydown events specifically for @@ trigger
+  cm.on("keydown", (cm, event) => {
+    if (event.key === "@") {
+      // Check if this is the second @ in a row
+      const cursor = cm.getCursor();
+      const line = cm.getLine(cursor.line);
+      const beforeCursor = line.substring(0, cursor.ch);
+      const lastChar = beforeCursor.slice(-1);
+
+      if (lastChar === "@") {
+        console.log("Montara: @@ trigger detected via keydown");
+        // The dropdown will be shown by the change event
+      }
     }
   });
 
@@ -814,6 +844,7 @@ function setupCodeMirrorIntegration() {
     // Look for elements with CodeMirror property
     document.querySelectorAll("*").forEach((element) => {
       if (element.CodeMirror && !element.CodeMirror._montaraInitialized) {
+        console.log("Montara: Found CodeMirror instance on element:", element);
         instances.push(element.CodeMirror);
       }
     });
@@ -823,10 +854,43 @@ function setupCodeMirrorIntegration() {
       .querySelectorAll('.cm-s-default, .CodeMirror, [class*="cm-"]')
       .forEach((element) => {
         if (element.CodeMirror && !element.CodeMirror._montaraInitialized) {
+          console.log(
+            "Montara: Found CodeMirror instance with cm-* class:",
+            element
+          );
           instances.push(element.CodeMirror);
         }
       });
 
+    // Also look for Snowflake-specific editor patterns
+    const snowflakeSelectors = [
+      '[data-testid*="editor"]',
+      '[data-testid*="sql"]',
+      ".snowflake-editor",
+      ".sql-editor",
+      ".code-editor",
+      '[class*="editor"]',
+    ];
+
+    snowflakeSelectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => {
+        // Check if this element or its children have CodeMirror
+        const cmElement = element.querySelector('.CodeMirror, [class*="cm-"]');
+        if (
+          cmElement &&
+          cmElement.CodeMirror &&
+          !cmElement.CodeMirror._montaraInitialized
+        ) {
+          console.log(
+            "Montara: Found CodeMirror instance in Snowflake editor:",
+            element
+          );
+          instances.push(cmElement.CodeMirror);
+        }
+      });
+    });
+
+    console.log("Montara: Found", instances.length, "CodeMirror instances");
     return instances;
   }
 
@@ -839,6 +903,7 @@ function setupCodeMirrorIntegration() {
     const originalCodeMirror = window.CodeMirror;
     window.CodeMirror = function (place, options) {
       const cm = originalCodeMirror.call(this, place, options);
+      console.log("Montara: New CodeMirror instance created:", cm);
       setupCodeMirrorListeners(cm);
       return cm;
     };
@@ -875,6 +940,39 @@ function setupCodeMirrorIntegration() {
               setupCodeMirrorListeners(element.CodeMirror);
             }
           });
+
+          // Check for Snowflake editor patterns in added nodes
+          const snowflakeSelectors = [
+            '[data-testid*="editor"]',
+            '[data-testid*="sql"]',
+            ".snowflake-editor",
+            ".sql-editor",
+            ".code-editor",
+            '[class*="editor"]',
+          ];
+
+          snowflakeSelectors.forEach((selector) => {
+            const elements =
+              node.querySelectorAll && node.querySelectorAll(selector);
+            if (elements) {
+              elements.forEach((element) => {
+                const cmElement = element.querySelector(
+                  '.CodeMirror, [class*="cm-"]'
+                );
+                if (
+                  cmElement &&
+                  cmElement.CodeMirror &&
+                  !cmElement.CodeMirror._montaraInitialized
+                ) {
+                  console.log(
+                    "Montara: Detected CodeMirror in new Snowflake editor:",
+                    element
+                  );
+                  setupCodeMirrorListeners(cmElement.CodeMirror);
+                }
+              });
+            }
+          });
         }
       });
     });
@@ -908,7 +1006,6 @@ function detectSnowflakeEditor() {
     ".snowflake-editor",
     ".sql-editor",
     ".code-editor",
-
     '[class*="editor"]',
     ".CodeMirror",
     '[class*="cm-"]',
@@ -929,9 +1026,18 @@ function detectSnowflakeEditor() {
             "Montara: Element has CodeMirror instance:",
             element.CodeMirror
           );
+          return element;
         }
 
-        return element;
+        // Check if it contains a CodeMirror instance
+        const cmElement = element.querySelector('.CodeMirror, [class*="cm-"]');
+        if (cmElement && cmElement.CodeMirror) {
+          console.log(
+            "Montara: Element contains CodeMirror instance:",
+            cmElement.CodeMirror
+          );
+          return element;
+        }
       }
     }
   }
@@ -943,6 +1049,21 @@ function detectSnowflakeEditor() {
       console.log("Montara: CodeMirror instance:", element.CodeMirror);
     }
   });
+
+  // Try to find any visible CodeMirror editor
+  const allCodeMirrors = document.querySelectorAll(
+    '.CodeMirror, [class*="cm-"]'
+  );
+  for (const element of allCodeMirrors) {
+    if (
+      element.offsetWidth > 0 &&
+      element.offsetHeight > 0 &&
+      element.CodeMirror
+    ) {
+      console.log("Montara: Found visible CodeMirror element:", element);
+      return element;
+    }
+  }
 
   return null;
 }
@@ -1006,6 +1127,68 @@ function getContentEditableSelectionOffset(element) {
 
   return preCaretRange.toString().length;
 }
+
+// Debug function to help troubleshoot Snowflake editor integration
+function debugSnowflakeEditor() {
+  console.log("=== Montara Debug: Snowflake Editor Detection ===");
+
+  // Check for CodeMirror instances
+  const codeMirrors = document.querySelectorAll('.CodeMirror, [class*="cm-"]');
+  console.log("Found", codeMirrors.length, "CodeMirror elements");
+
+  codeMirrors.forEach((element, index) => {
+    console.log(`CodeMirror ${index + 1}:`, {
+      element: element,
+      hasCodeMirror: !!element.CodeMirror,
+      visible: element.offsetWidth > 0 && element.offsetHeight > 0,
+      classes: element.className,
+      testId: element.getAttribute("data-testid"),
+    });
+  });
+
+  // Check for Snowflake-specific selectors
+  const snowflakeSelectors = [
+    '[data-testid*="editor"]',
+    '[data-testid*="sql"]',
+    ".snowflake-editor",
+    ".sql-editor",
+    ".code-editor",
+    '[class*="editor"]',
+  ];
+
+  snowflakeSelectors.forEach((selector) => {
+    const elements = document.querySelectorAll(selector);
+    console.log(`Selector "${selector}":`, elements.length, "elements found");
+    elements.forEach((element, index) => {
+      console.log(`  ${selector} ${index + 1}:`, {
+        element: element,
+        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
+        classes: element.className,
+        testId: element.getAttribute("data-testid"),
+        hasCodeMirror: !!element.CodeMirror,
+      });
+    });
+  });
+
+  // Check for any element with CodeMirror property
+  let codeMirrorCount = 0;
+  document.querySelectorAll("*").forEach((element) => {
+    if (element.CodeMirror) {
+      codeMirrorCount++;
+      console.log(`Element with CodeMirror ${codeMirrorCount}:`, {
+        element: element,
+        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
+        classes: element.className,
+        testId: element.getAttribute("data-testid"),
+      });
+    }
+  });
+
+  console.log("=== End Debug ===");
+}
+
+// Make debug function available globally
+window.debugMontara = debugSnowflakeEditor;
 
 // Run initialization when DOM is ready
 if (document.readyState === "loading") {
