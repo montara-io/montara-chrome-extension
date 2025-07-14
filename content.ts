@@ -11,6 +11,8 @@ const MontaraExtension = {
   constants: {
     trigger: "@@",
     isDebugMode: true,
+    montaraLogoUrl:
+      "https://montara.io/wp-content/uploads/2025/03/montara_logo_MEDIUM.png",
     colors: {
       background: "#fff",
       border: "#C8C8C8",
@@ -220,19 +222,11 @@ const MontaraExtension = {
           border-bottom: 1px solid ${MontaraExtension.constants.colors.borderLight};
           transition: background-color 0.2s;
         `;
-
+        const croppedCode = item.code.slice(0, 150) + "...";
         itemElement.innerHTML = `
           <div style="font-weight: 500; color: ${MontaraExtension.constants.colors.textPrimary}; margin-bottom: 4px;">${item.name}</div>
-          <div style="font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: ${MontaraExtension.constants.colors.textSecondary}; background: ${MontaraExtension.constants.colors.background}; padding: 4px 6px; border-radius: 4px; overflow-x: auto;">${item.code}</div>
+          <div style="font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: ${MontaraExtension.constants.colors.textSecondary}; background: ${MontaraExtension.constants.colors.background}; padding: 4px 6px; border-radius: 4px; overflow-x: auto;">${croppedCode}</div>
         `;
-
-        itemElement.addEventListener("mouseenter", () => {
-          itemElement.style.backgroundColor = "#f0f8ff";
-        });
-
-        itemElement.addEventListener("mouseleave", () => {
-          itemElement.style.backgroundColor = "transparent";
-        });
 
         itemElement.addEventListener("click", () => {
           this.insertTextAtCursor(item.code);
@@ -264,19 +258,41 @@ const MontaraExtension = {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
       `;
+      const headerContainer = document.createElement("div");
+      headerContainer.className = "montara-dropdown-header-container";
+      headerContainer.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid ${MontaraExtension.constants.colors.border};
+      `;
 
       const header = document.createElement("div");
       header.className = "montara-dropdown-header";
       header.style.cssText = `
-        padding: 1rem;
-        border-bottom: 1px solid ${MontaraExtension.constants.colors.border};
         font-weight: 600;
-        color: #333;
+        color: ${MontaraExtension.constants.colors.textPrimary};
         background: ${MontaraExtension.constants.colors.background};
         border-radius: 8px 8px 0 0;
       `;
-      header.textContent = "Insert SQL from Montara";
-      dropdown.appendChild(header);
+      header.textContent = "Insert SQL";
+      const montaraLogo = document.createElement("img");
+      montaraLogo.className = "montara-dropdown-powered-by-montara";
+      montaraLogo.src = MontaraExtension.constants.montaraLogoUrl;
+      montaraLogo.style.cssText = `
+        height: 1rem;
+        cursor: pointer;
+        vertical-align: middle;
+      `;
+      montaraLogo.alt = "Montara Logo";
+      montaraLogo.addEventListener("click", () => {
+        window.open("https://montara.io", "_blank");
+      });
+
+      headerContainer.appendChild(header);
+      headerContainer.appendChild(montaraLogo);
+      dropdown.appendChild(headerContainer);
 
       // Add search input
       const searchContainer = document.createElement("div");
@@ -353,6 +369,7 @@ const MontaraExtension = {
       }, 100);
 
       dropdown.appendChild(MontaraExtension.state.itemsList);
+
       container.appendChild(dropdown);
     },
     handleClick(event) {
