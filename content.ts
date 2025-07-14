@@ -381,14 +381,51 @@ function renderDropdown(items: any, x: number, y: number) {
 function insertTextAtCursor(text: string) {
   const codeMirrorLine = document.querySelector(".cm-activeLine.cm-line");
   if (codeMirrorLine) {
-    //replace MontaraData.constants.trigger with text
-    codeMirrorLine.textContent = codeMirrorLine.textContent.replace(
-      MontaraData.constants.trigger,
-      text
-    );
-    //Put the cursor at the end of the text
+    // Replace MontaraData.constants.trigger with text
+    const originalText = codeMirrorLine.textContent || "";
+    const newText = originalText.replace(MontaraData.constants.trigger, text);
+    codeMirrorLine.textContent = newText;
+
+    // Put the cursor at the end of the text using a safer approach
     const selection = window.getSelection();
-    selection.setPosition(codeMirrorLine, codeMirrorLine.textContent.length);
+    if (selection) {
+      // Create a new range
+      const range = document.createRange();
+
+      // Find the last text node in the element
+      const walker = document.createTreeWalker(
+        codeMirrorLine,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let lastTextNode = null;
+      let currentNode;
+      while ((currentNode = walker.nextNode())) {
+        lastTextNode = currentNode;
+      }
+
+      if (lastTextNode) {
+        // Set the range to the end of the last text node
+        const textLength = lastTextNode.textContent?.length || 0;
+        range.setStart(lastTextNode, textLength);
+        range.setEnd(lastTextNode, textLength);
+
+        // Clear existing selection and set the new range
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        // Fallback: set position at the end of the element
+        const childNodes = codeMirrorLine.childNodes;
+        if (childNodes.length > 0) {
+          const lastChild = childNodes[childNodes.length - 1];
+          range.setStartAfter(lastChild);
+          range.setEndAfter(lastChild);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+    }
   }
 }
 
