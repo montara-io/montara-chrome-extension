@@ -372,39 +372,43 @@ function insertTextAtCursor(text) {
   // First, try to find a CodeMirror instance in the active element or its children
   let codeMirrorInstance = null;
 
-  // Check if the active element itself has CodeMirror
-  if (activeElement.CodeMirror) {
-    codeMirrorInstance = activeElement.CodeMirror;
-    console.log(
-      "Montara: Found CodeMirror instance directly on active element"
-    );
+  // Check if the active element itself has CM6
+  if (activeElement.cmView) {
+    codeMirrorInstance = activeElement.cmView;
+    console.log("Montara: Found CodeMirror 6 view directly on active element");
+  } else if (activeElement.cmState) {
+    codeMirrorInstance = activeElement.cmState;
+    console.log("Montara: Found CodeMirror 6 state directly on active element");
   }
 
   // If not found, search for CodeMirror in children
   if (!codeMirrorInstance) {
-    const cmElement = activeElement.querySelector(
-      '.CodeMirror, [class*="cm-"]'
-    );
-    if (cmElement && cmElement.CodeMirror) {
-      codeMirrorInstance = cmElement.CodeMirror;
-      console.log("Montara: Found CodeMirror instance in child element");
+    const cmElement = activeElement.querySelector('.cm-editor, [class*="cm-"]');
+    if (cmElement) {
+      if (cmElement.cmView) {
+        codeMirrorInstance = cmElement.cmView;
+        console.log("Montara: Found CodeMirror 6 view in child element");
+      } else if (cmElement.cmState) {
+        codeMirrorInstance = cmElement.cmState;
+        console.log("Montara: Found CodeMirror 6 state in child element");
+      }
     }
   }
 
   // If still not found, search more broadly for any CodeMirror instance
   if (!codeMirrorInstance) {
-    const allElements = document.querySelectorAll(
-      '.CodeMirror, [class*="cm-"]'
-    );
+    const allElements = document.querySelectorAll('.cm-editor, [class*="cm-"]');
     for (const element of allElements) {
-      if (
-        element.CodeMirror &&
-        element.offsetWidth > 0 &&
-        element.offsetHeight > 0
-      ) {
-        codeMirrorInstance = element.CodeMirror;
-        console.log("Montara: Found CodeMirror instance in visible element");
-        break;
+      if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+        if (element.cmView) {
+          codeMirrorInstance = element.cmView;
+          console.log("Montara: Found CodeMirror 6 view in visible element");
+          break;
+        } else if (element.cmState) {
+          codeMirrorInstance = element.cmState;
+          console.log("Montara: Found CodeMirror 6 state in visible element");
+          break;
+        }
       }
     }
   }
@@ -412,35 +416,42 @@ function insertTextAtCursor(text) {
   // Handle CodeMirror editor (including Snowflake)
   if (codeMirrorInstance) {
     console.log("Montara: Using CodeMirror for text insertion");
-    const cm = codeMirrorInstance;
-    const cursor = cm.getCursor();
 
-    console.log("Montara: Current cursor position:", cursor);
-    console.log("Montara: Current line content:", cm.getLine(cursor.line));
+    // Check if this is CodeMirror 6
+    if (codeMirrorInstance.dispatch && codeMirrorInstance.state) {
+      console.log("Montara: Using CodeMirror 6 for text insertion");
+      const cmView = codeMirrorInstance;
+      const state = cmView.state;
+      const selection = state.selection.main;
 
-    // Remove the @@ trigger and insert the text
-    const from = {line: cursor.line, ch: Math.max(0, cursor.ch - 2)};
-    const to = {line: cursor.line, ch: cursor.ch};
+      // Remove the @@ trigger and insert the text
+      const from = Math.max(0, selection.head - 2);
+      const to = selection.head;
 
-    console.log(
-      "Montara: Replacing range from",
-      from,
-      "to",
-      to,
-      "with text:",
-      text
-    );
+      console.log(
+        "Montara: Replacing range from",
+        from,
+        "to",
+        to,
+        "with text:",
+        text
+      );
 
-    cm.replaceRange(text, from, to);
+      // Create a transaction to replace the text
+      const transaction = state.update({
+        changes: {from: from, to: to, insert: text},
+      });
 
-    // Set cursor position after the inserted text
-    const newCursor = {line: cursor.line, ch: from.ch + text.length};
-    cm.setCursor(newCursor);
+      cmView.dispatch(transaction);
 
-    // Focus the editor
-    cm.focus();
+      // Focus the editor
+      cmView.focus();
 
-    console.log("Montara: Text insertion completed via CodeMirror");
+      console.log("Montara: Text insertion completed via CodeMirror 6");
+      return;
+    }
+
+    console.log("Montara: Unsupported CodeMirror version for text insertion");
     return;
   }
 
@@ -487,23 +498,40 @@ function insertTextAtCursor(text) {
 
     // Try to find any CodeMirror instance on the page
     const allCodeMirrors = document.querySelectorAll(
-      '.CodeMirror, [class*="cm-"]'
+      '.cm-editor, [class*="cm-"]'
     );
     for (const element of allCodeMirrors) {
-      if (
-        element.CodeMirror &&
-        element.offsetWidth > 0 &&
-        element.offsetHeight > 0
-      ) {
-        console.log("Montara: Found fallback CodeMirror instance");
-        const cm = element.CodeMirror;
-        const cursor = cm.getCursor();
-        const from = {line: cursor.line, ch: Math.max(0, cursor.ch - 2)};
-        const to = {line: cursor.line, ch: cursor.ch};
-        cm.replaceRange(text, from, to);
-        cm.setCursor({line: cursor.line, ch: from.ch + text.length});
-        cm.focus();
-        return;
+      if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+        if (element.cmView) {
+          console.log("Montara: Found fallback CodeMirror 6 view");
+          const cmView = element.cmView;
+          const state = cmView.state;
+          const selection = state.selection.main;
+          const from = Math.max(0, selection.head - 2);
+          const to = selection.head;
+          const transaction = state.update({
+            changes: {from: from, to: to, insert: text},
+          });
+          cmView.dispatch(transaction);
+          cmView.focus();
+          return;
+        } else if (element.cmState) {
+          console.log("Montara: Found fallback CodeMirror 6 state");
+          // For cmState, we need to find the corresponding view
+          const cmView = element.cmView || element.view;
+          if (cmView) {
+            const state = element;
+            const selection = state.selection.main;
+            const from = Math.max(0, selection.head - 2);
+            const to = selection.head;
+            const transaction = state.update({
+              changes: {from: from, to: to, insert: text},
+            });
+            cmView.dispatch(transaction);
+            cmView.focus();
+            return;
+          }
+        }
       }
     }
 
@@ -520,8 +548,8 @@ function isEditableElement(element) {
     return true;
   }
 
-  // CodeMirror
-  if (element.CodeMirror) {
+  // CodeMirror 6
+  if (element.cmView || element.cmState) {
     return true;
   }
 
@@ -531,16 +559,17 @@ function isEditableElement(element) {
     (element.classList.contains("snowflake-editor") ||
       element.classList.contains("sql-editor") ||
       element.classList.contains("code-editor") ||
+      element.classList.contains("cm-editor") ||
       element.getAttribute("data-testid")?.includes("editor") ||
       element.getAttribute("data-testid")?.includes("sql"))
   ) {
     return true;
   }
 
-  // Check if element contains a CodeMirror editor
+  // Check if element contains a CodeMirror editor (CM6)
   if (
     element.querySelector &&
-    element.querySelector('.CodeMirror, [class*="cm-"]')
+    element.querySelector('.cm-editor, [class*="cm-"]')
   ) {
     return true;
   }
@@ -564,17 +593,21 @@ function handleInput(event) {
       return;
     }
 
-    // For CodeMirror
-    if (target.CodeMirror) {
-      const cm = target.CodeMirror;
-      const cursor = cm.getCursor();
-      const line = cm.getLine(cursor.line);
-      const beforeCursor = line.substring(0, cursor.ch);
+    // For CodeMirror 6
+    if (target.cmView || target.cmState) {
+      const cmView = target.cmView || target;
+      const state = cmView.state;
+      const doc = state.doc;
+      const selection = state.selection.main;
+      const line = doc.lineAt(selection.head);
+      const beforeCursor = line.text.slice(0, selection.head - line.from);
       const lastTwoChars = beforeCursor.slice(-2);
 
       if (lastTwoChars === "@@") {
-        const coords = cm.cursorCoords(cursor);
-        showDropdown(coords.left, coords.bottom, target, cursor.ch);
+        const coords = cmView.coordsAtPos(selection.head);
+        if (coords) {
+          showDropdown(coords.left, coords.bottom, target, selection.head);
+        }
       } else {
         hideDropdown();
       }
@@ -613,17 +646,26 @@ function handleKeyDown(event) {
       return;
     }
 
-    // For CodeMirror
-    if (activeElement.CodeMirror) {
-      const cm = activeElement.CodeMirror;
-      const cursor = cm.getCursor();
-      const line = cm.getLine(cursor.line);
-      const beforeCursor = line.substring(0, cursor.ch);
+    // For CodeMirror 6
+    if (activeElement.cmView || activeElement.cmState) {
+      const cmView = activeElement.cmView || activeElement;
+      const state = cmView.state;
+      const doc = state.doc;
+      const selection = state.selection.main;
+      const line = doc.lineAt(selection.head);
+      const beforeCursor = line.text.slice(0, selection.head - line.from);
       const lastTwoChars = beforeCursor.slice(-2);
 
       if (lastTwoChars === "@@") {
-        const coords = cm.cursorCoords(cursor);
-        showDropdown(coords.left, coords.bottom, activeElement, cursor.ch);
+        const coords = cmView.coordsAtPos(selection.head);
+        if (coords) {
+          showDropdown(
+            coords.left,
+            coords.bottom,
+            activeElement,
+            selection.head
+          );
+        }
       }
       return;
     }
@@ -717,16 +759,26 @@ function initializeExtension() {
     const snowflakeEditor = detectSnowflakeEditor();
     if (snowflakeEditor) {
       console.log("Montara: Snowflake editor detected, setting up integration");
-      if (snowflakeEditor.CodeMirror) {
-        setupCodeMirrorListeners(snowflakeEditor.CodeMirror);
+
+      // Check for CodeMirror 6
+      if (snowflakeEditor.cmView) {
+        setupCodeMirrorListeners(snowflakeEditor.cmView);
+      }
+      if (snowflakeEditor.cmState) {
+        setupCodeMirrorListeners(snowflakeEditor.cmState);
       }
 
       // Also check for CodeMirror instances within the editor
       const cmElement = snowflakeEditor.querySelector(
-        '.CodeMirror, [class*="cm-"]'
+        '.cm-editor, [class*="cm-"]'
       );
-      if (cmElement && cmElement.CodeMirror) {
-        setupCodeMirrorListeners(cmElement.CodeMirror);
+      if (cmElement) {
+        if (cmElement.cmView) {
+          setupCodeMirrorListeners(cmElement.cmView);
+        }
+        if (cmElement.cmState) {
+          setupCodeMirrorListeners(cmElement.cmState);
+        }
       }
     }
   }
@@ -734,10 +786,11 @@ function initializeExtension() {
   // Try immediately
   setupSnowflakeEditor();
 
-  // Try after a delay
+  // Try after delays to ensure DOM is fully loaded
   setTimeout(setupSnowflakeEditor, 1000);
   setTimeout(setupSnowflakeEditor, 3000);
   setTimeout(setupSnowflakeEditor, 5000);
+  setTimeout(setupSnowflakeEditor, 10000);
 
   // Also set up a periodic check for the first minute
   const checkInterval = setInterval(() => {
@@ -755,83 +808,83 @@ function setupCodeMirrorListeners(cm) {
 
   console.log("Montara: Setting up listeners for CodeMirror instance", cm);
 
-  // Listen for changes in the editor
-  cm.on("change", (cm, changeObj) => {
-    const cursor = cm.getCursor();
-    const line = cm.getLine(cursor.line);
-    const beforeCursor = line.substring(0, cursor.ch);
-    const lastTwoChars = beforeCursor.slice(-2);
+  // Check if this is CodeMirror 6 (CM6)
+  if (cm.dispatch && cm.state) {
+    setupCodeMirror6Listeners(cm);
+    return;
+  }
 
-    console.log("Montara: CodeMirror change detected:", {
-      cursor: cursor,
-      line: line,
-      beforeCursor: beforeCursor,
-      lastTwoChars: lastTwoChars,
-    });
+  console.log("Montara: Unsupported CodeMirror version detected");
+}
 
-    if (lastTwoChars === "@@") {
-      const coords = cm.cursorCoords(cursor);
-      console.log("Montara: @@ trigger detected, showing dropdown at:", coords);
-      showDropdown(
-        coords.left,
-        coords.bottom + 5,
-        cm.getWrapperElement(),
-        cursor.ch
-      );
-    } else {
-      hideDropdown();
-    }
-  });
+// Function to set up CodeMirror 6 listeners
+function setupCodeMirror6Listeners(cmView) {
+  if (cmView._montaraInitialized) return; // Prevent double initialization
 
-  // Listen for cursor activity
-  cm.on("cursorActivity", (cm) => {
-    const cursor = cm.getCursor();
-    const line = cm.getLine(cursor.line);
-    const beforeCursor = line.substring(0, cursor.ch);
-    const lastTwoChars = beforeCursor.slice(-2);
+  console.log(
+    "Montara: Setting up listeners for CodeMirror 6 instance",
+    cmView
+  );
 
-    console.log("Montara: CodeMirror cursor activity:", {
-      cursor: cursor,
-      line: line,
-      beforeCursor: beforeCursor,
-      lastTwoChars: lastTwoChars,
-    });
+  // Get the DOM element for positioning
+  const dom = cmView.dom;
 
-    if (lastTwoChars === "@@") {
-      const coords = cm.cursorCoords(cursor);
-      console.log(
-        "Montara: @@ trigger detected in cursor activity, showing dropdown at:",
-        coords
-      );
-      showDropdown(
-        coords.left,
-        coords.bottom + 5,
-        cm.getWrapperElement(),
-        cursor.ch
-      );
-    } else {
-      hideDropdown();
-    }
-  });
+  // Create a custom event listener for changes
+  const checkForTrigger = () => {
+    try {
+      const state = cmView.state;
+      const doc = state.doc;
+      const selection = state.selection.main;
+      const line = doc.lineAt(selection.head);
+      const beforeCursor = line.text.slice(0, selection.head - line.from);
+      const lastTwoChars = beforeCursor.slice(-2);
 
-  // Listen for keydown events specifically for @@ trigger
-  cm.on("keydown", (cm, event) => {
-    if (event.key === "@") {
-      // Check if this is the second @ in a row
-      const cursor = cm.getCursor();
-      const line = cm.getLine(cursor.line);
-      const beforeCursor = line.substring(0, cursor.ch);
-      const lastChar = beforeCursor.slice(-1);
+      console.log("Montara: CodeMirror 6 change detected:", {
+        selection: selection,
+        line: line.text,
+        beforeCursor: beforeCursor,
+        lastTwoChars: lastTwoChars,
+      });
 
-      if (lastChar === "@") {
-        console.log("Montara: @@ trigger detected via keydown");
-        // The dropdown will be shown by the change event
+      if (lastTwoChars === "@@") {
+        // Get cursor position for dropdown
+        const coords = cmView.coordsAtPos(selection.head);
+        if (coords) {
+          console.log(
+            "Montara: @@ trigger detected in CM6, showing dropdown at:",
+            coords
+          );
+          showDropdown(coords.left, coords.bottom + 5, dom, selection.head);
+        }
+      } else {
+        hideDropdown();
       }
+    } catch (error) {
+      console.log("Montara: Error checking for trigger in CM6:", error);
     }
+  };
+
+  // Listen for changes using CM6's update mechanism
+  const originalUpdate = cmView.update;
+  cmView.update = function (updates) {
+    const result = originalUpdate.call(this, updates);
+    checkForTrigger();
+    return result;
+  };
+
+  // Also listen for DOM changes as a fallback
+  const observer = new MutationObserver(() => {
+    checkForTrigger();
+  });
+
+  observer.observe(dom, {
+    childList: true,
+    subtree: true,
+    characterData: true,
   });
 
   // Mark as initialized
-  cm._montaraInitialized = true;
+  cmView._montaraInitialized = true;
 }
 
 function setupCodeMirrorIntegration() {
@@ -841,26 +894,127 @@ function setupCodeMirrorIntegration() {
   function findCodeMirrorInstances() {
     const instances = [];
 
-    // Look for elements with CodeMirror property
+    console.log("Montara: Starting CodeMirror detection...");
+
+    // Look for elements with CM6 properties
+    let cm6ElementsFound = 0;
     document.querySelectorAll("*").forEach((element) => {
-      if (element.CodeMirror && !element.CodeMirror._montaraInitialized) {
-        console.log("Montara: Found CodeMirror instance on element:", element);
-        instances.push(element.CodeMirror);
+      if (element.cmView && !element.cmView._montaraInitialized) {
+        console.log("Montara: Found CodeMirror 6 view on element:", element);
+        instances.push(element.cmView);
+        cm6ElementsFound++;
+      }
+      if (element.cmState && !element.cmState._montaraInitialized) {
+        console.log("Montara: Found CodeMirror 6 state on element:", element);
+        instances.push(element.cmState);
+        cm6ElementsFound++;
       }
     });
 
+    console.log(
+      "Montara: Found",
+      cm6ElementsFound,
+      "CM6 elements with properties"
+    );
+
     // Look for elements with cm-* classes (CodeMirror wrapper classes)
-    document
-      .querySelectorAll('.cm-s-default, .CodeMirror, [class*="cm-"]')
-      .forEach((element) => {
-        if (element.CodeMirror && !element.CodeMirror._montaraInitialized) {
-          console.log(
-            "Montara: Found CodeMirror instance with cm-* class:",
-            element
-          );
-          instances.push(element.CodeMirror);
-        }
+    const cmElements = document.querySelectorAll('.cm-editor, [class*="cm-"]');
+    console.log(
+      "Montara: Found",
+      cmElements.length,
+      "elements with cm-* classes"
+    );
+
+    cmElements.forEach((element, index) => {
+      console.log(`Montara: CM element ${index + 1}:`, {
+        element: element,
+        hasCM6View: !!element.cmView,
+        hasCM6State: !!element.cmState,
+        classes: element.className,
+        testId: element.getAttribute("data-testid"),
+        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
       });
+
+      if (element.cmView && !element.cmView._montaraInitialized) {
+        console.log(
+          "Montara: Found CodeMirror 6 view with cm-* class:",
+          element
+        );
+        instances.push(element.cmView);
+      }
+      if (element.cmState && !element.cmState._montaraInitialized) {
+        console.log(
+          "Montara: Found CodeMirror 6 state with cm-* class:",
+          element
+        );
+        instances.push(element.cmState);
+      }
+    });
+
+    // More thorough search for CodeMirror instances
+    // Look for any element with cm-* classes and try to find the CodeMirror instance
+    document.querySelectorAll('[class*="cm-"]').forEach((element) => {
+      // Check if this element has CodeMirror (CM6)
+      if (element.cmView && !element.cmView._montaraInitialized) {
+        console.log(
+          "Montara: Found CodeMirror 6 view on cm-* element:",
+          element
+        );
+        instances.push(element.cmView);
+        return;
+      }
+      if (element.cmState && !element.cmState._montaraInitialized) {
+        console.log(
+          "Montara: Found CodeMirror 6 state on cm-* element:",
+          element
+        );
+        instances.push(element.cmState);
+        return;
+      }
+
+      // Check if any parent has CodeMirror (CM6)
+      let current = element;
+      while (current && current !== document.body) {
+        if (current.cmView && !current.cmView._montaraInitialized) {
+          console.log(
+            "Montara: Found CodeMirror 6 view on parent of cm-* element:",
+            current
+          );
+          instances.push(current.cmView);
+          break;
+        }
+        if (current.cmState && !current.cmState._montaraInitialized) {
+          console.log(
+            "Montara: Found CodeMirror 6 state on parent of cm-* element:",
+            current
+          );
+          instances.push(current.cmState);
+          break;
+        }
+        current = current.parentElement;
+      }
+
+      // Check if any child has CodeMirror (CM6)
+      const cmElements = element.querySelectorAll('.cm-editor, [class*="cm-"]');
+      for (const cmElement of cmElements) {
+        if (cmElement.cmView && !cmElement.cmView._montaraInitialized) {
+          console.log(
+            "Montara: Found CodeMirror 6 view in child of cm-* element:",
+            cmElement
+          );
+          instances.push(cmElement.cmView);
+          break;
+        }
+        if (cmElement.cmState && !cmElement.cmState._montaraInitialized) {
+          console.log(
+            "Montara: Found CodeMirror 6 state in child of cm-* element:",
+            cmElement
+          );
+          instances.push(cmElement.cmState);
+          break;
+        }
+      }
+    });
 
     // Also look for Snowflake-specific editor patterns
     const snowflakeSelectors = [
@@ -869,75 +1023,200 @@ function setupCodeMirrorIntegration() {
       ".snowflake-editor",
       ".sql-editor",
       ".code-editor",
+      ".cm-editor",
       '[class*="editor"]',
+      ".cm-content",
     ];
 
     snowflakeSelectors.forEach((selector) => {
       document.querySelectorAll(selector).forEach((element) => {
-        // Check if this element or its children have CodeMirror
-        const cmElement = element.querySelector('.CodeMirror, [class*="cm-"]');
-        if (
-          cmElement &&
-          cmElement.CodeMirror &&
-          !cmElement.CodeMirror._montaraInitialized
-        ) {
-          console.log(
-            "Montara: Found CodeMirror instance in Snowflake editor:",
-            element
-          );
-          instances.push(cmElement.CodeMirror);
+        // Check if this element or its children have CodeMirror (CM6)
+        const cmElement = element.querySelector('.cm-editor, [class*="cm-"]');
+        if (cmElement) {
+          if (cmElement.cmView && !cmElement.cmView._montaraInitialized) {
+            console.log(
+              "Montara: Found CodeMirror 6 view in Snowflake editor:",
+              element
+            );
+            instances.push(cmElement.cmView);
+          }
+          if (cmElement.cmState && !cmElement.cmState._montaraInitialized) {
+            console.log(
+              "Montara: Found CodeMirror 6 state in Snowflake editor:",
+              element
+            );
+            instances.push(cmElement.cmState);
+          }
         }
       });
     });
 
-    console.log("Montara: Found", instances.length, "CodeMirror instances");
-    return instances;
+    // Remove duplicates
+    const uniqueInstances = [...new Set(instances)];
+    console.log(
+      "Montara: Found",
+      uniqueInstances.length,
+      "unique CodeMirror instances"
+    );
+    return uniqueInstances;
   }
 
   // Set up existing instances
   const existingInstances = findCodeMirrorInstances();
+  console.log("Montara: Found", existingInstances.length, "existing instances");
   existingInstances.forEach(setupCodeMirrorListeners);
 
-  // Override CodeMirror constructor to catch new instances
-  if (window.CodeMirror) {
-    const originalCodeMirror = window.CodeMirror;
-    window.CodeMirror = function (place, options) {
-      const cm = originalCodeMirror.call(this, place, options);
-      console.log("Montara: New CodeMirror instance created:", cm);
-      setupCodeMirrorListeners(cm);
-      return cm;
-    };
+  // Also try aggressive detection for React-based implementations
+  const aggressiveInstances = findCodeMirrorInstancesAggressive();
+  console.log(
+    "Montara: Found",
+    aggressiveInstances.length,
+    "aggressive instances"
+  );
+  aggressiveInstances.forEach(setupCodeMirrorListeners);
 
-    // Copy static properties
-    Object.setPrototypeOf(window.CodeMirror, originalCodeMirror);
-    Object.assign(window.CodeMirror, originalCodeMirror);
+  // Debug: Check for any elements with cm-* classes
+  const allCmElements = document.querySelectorAll('[class*="cm-"]');
+  console.log(
+    "Montara: Total elements with cm-* classes:",
+    allCmElements.length
+  );
+  allCmElements.forEach((element, index) => {
+    console.log(`Montara: CM element ${index + 1}:`, {
+      tagName: element.tagName,
+      className: element.className,
+      testId: element.getAttribute("data-testid"),
+      hasCM6View: !!element.cmView,
+      hasCM6State: !!element.cmState,
+      visible: element.offsetWidth > 0 && element.offsetHeight > 0,
+    });
+  });
+
+  // Debug: Check for any object that looks like a CodeMirror 6 instance
+  console.log("Montara: Checking for CodeMirror 6-like objects...");
+  let cm6LikeObjects = 0;
+  document.querySelectorAll("*").forEach((element) => {
+    // Check if element has any property that looks like CM6
+    for (const key in element) {
+      try {
+        const value = element[key];
+        if (value && typeof value === "object") {
+          // Check if it has CM6-like properties
+          if (value.dispatch && value.state && value.dom) {
+            console.log("Montara: Found CM6-like object:", {
+              element: element,
+              property: key,
+              value: value,
+            });
+            cm6LikeObjects++;
+          }
+        }
+      } catch (e) {
+        // Ignore errors when accessing properties
+      }
+    }
+  });
+  console.log("Montara: Found", cm6LikeObjects, "CM6-like objects");
+
+  // Debug: Check for global variables that might contain CM6 instances
+  console.log("Montara: Checking global variables for CM6 instances...");
+  let globalCM6Objects = 0;
+  for (const key in window) {
+    try {
+      const value = window[key];
+      if (value && typeof value === "object") {
+        // Check if it has CM6-like properties
+        if (value.dispatch && value.state && value.dom) {
+          console.log("Montara: Found global CM6-like object:", {
+            key: key,
+            value: value,
+          });
+          globalCM6Objects++;
+        }
+      }
+    } catch (e) {
+      // Ignore errors when accessing window properties
+    }
   }
+  console.log("Montara: Found", globalCM6Objects, "global CM6-like objects");
+
+  // Debug: Check for React fiber nodes that might contain CM6 instances
+  console.log("Montara: Checking React fiber nodes...");
+  let reactCM6Objects = 0;
+  document.querySelectorAll("*").forEach((element) => {
+    // Check for React fiber properties
+    const fiberKeys = [
+      "_reactInternalFiber",
+      "_reactInternalInstance",
+      "__reactInternalInstance$",
+      "__reactFiber$",
+    ];
+    fiberKeys.forEach((key) => {
+      try {
+        const fiber = element[key];
+        if (fiber && typeof fiber === "object") {
+          // Check if fiber has any CM6-like properties
+          for (const fiberKey in fiber) {
+            try {
+              const fiberValue = fiber[fiberKey];
+              if (fiberValue && typeof fiberValue === "object") {
+                if (fiberValue.dispatch && fiberValue.state && fiberValue.dom) {
+                  console.log("Montara: Found CM6 in React fiber:", {
+                    element: element,
+                    fiberKey: fiberKey,
+                    fiberValue: fiberValue,
+                  });
+                  reactCM6Objects++;
+                }
+              }
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    });
+  });
+  console.log("Montara: Found", reactCM6Objects, "CM6 objects in React fibers");
 
   // Set up mutation observer to detect new CodeMirror instances
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          // Check if the added node is a CodeMirror instance
-          if (node.CodeMirror && !node.CodeMirror._montaraInitialized) {
+          // Check if the added node is a CodeMirror instance (CM6)
+          if (node.cmView && !node.cmView._montaraInitialized) {
+            console.log("Montara: Detected new CodeMirror 6 view", node.cmView);
+            setupCodeMirrorListeners(node.cmView);
+          }
+          if (node.cmState && !node.cmState._montaraInitialized) {
             console.log(
-              "Montara: Detected new CodeMirror instance",
-              node.CodeMirror
+              "Montara: Detected new CodeMirror 6 state",
+              node.cmState
             );
-            setupCodeMirrorListeners(node.CodeMirror);
+            setupCodeMirrorListeners(node.cmState);
           }
 
           // Check for CodeMirror instances within the added node
           const cmElements =
             node.querySelectorAll &&
-            node.querySelectorAll('.CodeMirror, [class*="cm-"]');
+            node.querySelectorAll('.cm-editor, [class*="cm-"]');
           cmElements.forEach((element) => {
-            if (element.CodeMirror && !element.CodeMirror._montaraInitialized) {
+            if (element.cmView && !element.cmView._montaraInitialized) {
               console.log(
-                "Montara: Detected CodeMirror instance within added node",
-                element.CodeMirror
+                "Montara: Detected CodeMirror 6 view within added node",
+                element.cmView
               );
-              setupCodeMirrorListeners(element.CodeMirror);
+              setupCodeMirrorListeners(element.cmView);
+            }
+            if (element.cmState && !element.cmState._montaraInitialized) {
+              console.log(
+                "Montara: Detected CodeMirror 6 state within added node",
+                element.cmState
+              );
+              setupCodeMirrorListeners(element.cmState);
             }
           });
 
@@ -948,6 +1227,7 @@ function setupCodeMirrorIntegration() {
             ".snowflake-editor",
             ".sql-editor",
             ".code-editor",
+            ".cm-editor",
             '[class*="editor"]',
           ];
 
@@ -957,18 +1237,29 @@ function setupCodeMirrorIntegration() {
             if (elements) {
               elements.forEach((element) => {
                 const cmElement = element.querySelector(
-                  '.CodeMirror, [class*="cm-"]'
+                  '.cm-editor, [class*="cm-"]'
                 );
-                if (
-                  cmElement &&
-                  cmElement.CodeMirror &&
-                  !cmElement.CodeMirror._montaraInitialized
-                ) {
-                  console.log(
-                    "Montara: Detected CodeMirror in new Snowflake editor:",
-                    element
-                  );
-                  setupCodeMirrorListeners(cmElement.CodeMirror);
+                if (cmElement) {
+                  if (
+                    cmElement.cmView &&
+                    !cmElement.cmView._montaraInitialized
+                  ) {
+                    console.log(
+                      "Montara: Detected CodeMirror 6 view in new Snowflake editor:",
+                      element
+                    );
+                    setupCodeMirrorListeners(cmElement.cmView);
+                  }
+                  if (
+                    cmElement.cmState &&
+                    !cmElement.cmState._montaraInitialized
+                  ) {
+                    console.log(
+                      "Montara: Detected CodeMirror 6 state in new Snowflake editor:",
+                      element
+                    );
+                    setupCodeMirrorListeners(cmElement.cmState);
+                  }
                 }
               });
             }
@@ -987,12 +1278,133 @@ function setupCodeMirrorIntegration() {
   const checkInterval = setInterval(() => {
     const instances = findCodeMirrorInstances();
     instances.forEach(setupCodeMirrorListeners);
+
+    // Also try aggressive detection periodically
+    const aggressiveInstances = findCodeMirrorInstancesAggressive();
+    aggressiveInstances.forEach(setupCodeMirrorListeners);
   }, 2000);
 
   // Stop checking after 60 seconds
   setTimeout(() => {
     clearInterval(checkInterval);
   }, 60000);
+}
+
+// Enhanced CodeMirror detection for React-based implementations
+function findCodeMirrorInstancesAggressive() {
+  const instances = [];
+
+  console.log("Montara: Performing aggressive CodeMirror detection...");
+
+  // Method 1: Look for CodeMirror 6 (CM6) instances
+  const cmElements = document.querySelectorAll('.cm-editor, [class*="cm-"]');
+  console.log(
+    "Montara: Aggressive detection found",
+    cmElements.length,
+    "cm-* elements"
+  );
+
+  cmElements.forEach((element) => {
+    // Check for CM6 view property
+    if (element.cmView && !element.cmView._montaraInitialized) {
+      console.log(
+        "Montara: Found CodeMirror 6 view on cm-editor element:",
+        element
+      );
+      instances.push(element.cmView);
+      return;
+    }
+
+    // Check for CM6 state property
+    if (element.cmState && !element.cmState._montaraInitialized) {
+      console.log(
+        "Montara: Found CodeMirror 6 state on cm-editor element:",
+        element
+      );
+      instances.push(element.cmState);
+      return;
+    }
+
+    // Check all parents up to body for CM6 properties
+    let current = element;
+    while (current && current !== document.body) {
+      if (current.cmView && !current.cmView._montaraInitialized) {
+        console.log("Montara: Found CodeMirror 6 view on parent:", current);
+        instances.push(current.cmView);
+        break;
+      }
+      if (current.cmState && !current.cmState._montaraInitialized) {
+        console.log("Montara: Found CodeMirror 6 state on parent:", current);
+        instances.push(current.cmState);
+        break;
+      }
+      current = current.parentElement;
+    }
+
+    // Check all children recursively for CM6 properties
+    const allChildren = element.querySelectorAll("*");
+    for (const child of allChildren) {
+      if (child.cmView && !child.cmView._montaraInitialized) {
+        console.log("Montara: Found CodeMirror 6 view on child:", child);
+        instances.push(child.cmView);
+        break;
+      }
+      if (child.cmState && !child.cmState._montaraInitialized) {
+        console.log("Montara: Found CodeMirror 6 state on child:", child);
+        instances.push(child.cmState);
+        break;
+      }
+    }
+  });
+
+  // Method 3: Look for React component patterns that might wrap CodeMirror
+  const reactSelectors = [
+    '[data-testid*="editor"]',
+    '[data-testid*="sql"]',
+    '[class*="editor"]',
+    '[class*="sql"]',
+    '[class*="code"]',
+  ];
+
+  reactSelectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((element) => {
+      // Look for any CodeMirror instance within this element
+      const cmElements = element.querySelectorAll('[class*="cm-"]');
+      cmElements.forEach((cmElement) => {
+        let current = cmElement;
+        while (current && current !== element) {
+          // Check for CM6
+          if (current.cmView && !current.cmView._montaraInitialized) {
+            console.log(
+              "Montara: Found CodeMirror 6 view in React component:",
+              current
+            );
+            instances.push(current.cmView);
+            break;
+          }
+          if (current.cmState && !current.cmState._montaraInitialized) {
+            console.log(
+              "Montara: Found CodeMirror 6 state in React component:",
+              current
+            );
+            instances.push(current.cmState);
+            break;
+          }
+
+          current = current.parentElement;
+        }
+      });
+    });
+  });
+
+  // Remove duplicates
+  const uniqueInstances = [...new Set(instances)];
+  console.log(
+    "Montara: Aggressive detection found",
+    uniqueInstances.length,
+    "CodeMirror instances"
+  );
+  return uniqueInstances;
 }
 
 // Helper functions for dropdown functionality
@@ -1006,9 +1418,8 @@ function detectSnowflakeEditor() {
     ".snowflake-editor",
     ".sql-editor",
     ".code-editor",
+    ".cm-editor",
     '[class*="editor"]',
-    ".CodeMirror",
-    '[class*="cm-"]',
   ];
 
   for (const selector of selectors) {
@@ -1020,48 +1431,76 @@ function detectSnowflakeEditor() {
       if (element.offsetWidth > 0 && element.offsetHeight > 0) {
         console.log("Montara: Found visible editor element:", element);
 
-        // Check if it has CodeMirror
-        if (element.CodeMirror) {
+        // Check if it has CodeMirror (CM6)
+        if (element.cmView) {
           console.log(
-            "Montara: Element has CodeMirror instance:",
-            element.CodeMirror
+            "Montara: Element has CodeMirror 6 view:",
+            element.cmView
+          );
+          return element;
+        }
+        if (element.cmState) {
+          console.log(
+            "Montara: Element has CodeMirror 6 state:",
+            element.cmState
           );
           return element;
         }
 
-        // Check if it contains a CodeMirror instance
-        const cmElement = element.querySelector('.CodeMirror, [class*="cm-"]');
-        if (cmElement && cmElement.CodeMirror) {
-          console.log(
-            "Montara: Element contains CodeMirror instance:",
-            cmElement.CodeMirror
-          );
-          return element;
+        // Check if it contains a CodeMirror instance (CM6)
+        const cmElement = element.querySelector('.cm-editor, [class*="cm-"]');
+        if (cmElement) {
+          if (cmElement.cmView) {
+            console.log(
+              "Montara: Element contains CodeMirror 6 view:",
+              cmElement.cmView
+            );
+            return element;
+          }
+          if (cmElement.cmState) {
+            console.log(
+              "Montara: Element contains CodeMirror 6 state:",
+              cmElement.cmState
+            );
+            return element;
+          }
         }
       }
     }
   }
 
-  // Also look for any element with CodeMirror property
+  // Also look for any element with CodeMirror properties
   document.querySelectorAll("*").forEach((element) => {
-    if (element.CodeMirror) {
-      console.log("Montara: Found element with CodeMirror:", element);
-      console.log("Montara: CodeMirror instance:", element.CodeMirror);
+    if (element.cmView) {
+      console.log("Montara: Found element with CodeMirror 6 view:", element);
+      console.log("Montara: CodeMirror 6 view:", element.cmView);
+    }
+    if (element.cmState) {
+      console.log("Montara: Found element with CodeMirror 6 state:", element);
+      console.log("Montara: CodeMirror 6 state:", element.cmState);
     }
   });
 
-  // Try to find any visible CodeMirror editor
+  // Try to find any visible CodeMirror editor (CM6)
   const allCodeMirrors = document.querySelectorAll(
-    '.CodeMirror, [class*="cm-"]'
+    '.cm-editor, [class*="cm-"]'
   );
   for (const element of allCodeMirrors) {
-    if (
-      element.offsetWidth > 0 &&
-      element.offsetHeight > 0 &&
-      element.CodeMirror
-    ) {
-      console.log("Montara: Found visible CodeMirror element:", element);
-      return element;
+    if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+      if (element.cmView) {
+        console.log(
+          "Montara: Found visible CodeMirror 6 view element:",
+          element
+        );
+        return element;
+      }
+      if (element.cmState) {
+        console.log(
+          "Montara: Found visible CodeMirror 6 state element:",
+          element
+        );
+        return element;
+      }
     }
   }
 
@@ -1127,68 +1566,6 @@ function getContentEditableSelectionOffset(element) {
 
   return preCaretRange.toString().length;
 }
-
-// Debug function to help troubleshoot Snowflake editor integration
-function debugSnowflakeEditor() {
-  console.log("=== Montara Debug: Snowflake Editor Detection ===");
-
-  // Check for CodeMirror instances
-  const codeMirrors = document.querySelectorAll('.CodeMirror, [class*="cm-"]');
-  console.log("Found", codeMirrors.length, "CodeMirror elements");
-
-  codeMirrors.forEach((element, index) => {
-    console.log(`CodeMirror ${index + 1}:`, {
-      element: element,
-      hasCodeMirror: !!element.CodeMirror,
-      visible: element.offsetWidth > 0 && element.offsetHeight > 0,
-      classes: element.className,
-      testId: element.getAttribute("data-testid"),
-    });
-  });
-
-  // Check for Snowflake-specific selectors
-  const snowflakeSelectors = [
-    '[data-testid*="editor"]',
-    '[data-testid*="sql"]',
-    ".snowflake-editor",
-    ".sql-editor",
-    ".code-editor",
-    '[class*="editor"]',
-  ];
-
-  snowflakeSelectors.forEach((selector) => {
-    const elements = document.querySelectorAll(selector);
-    console.log(`Selector "${selector}":`, elements.length, "elements found");
-    elements.forEach((element, index) => {
-      console.log(`  ${selector} ${index + 1}:`, {
-        element: element,
-        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
-        classes: element.className,
-        testId: element.getAttribute("data-testid"),
-        hasCodeMirror: !!element.CodeMirror,
-      });
-    });
-  });
-
-  // Check for any element with CodeMirror property
-  let codeMirrorCount = 0;
-  document.querySelectorAll("*").forEach((element) => {
-    if (element.CodeMirror) {
-      codeMirrorCount++;
-      console.log(`Element with CodeMirror ${codeMirrorCount}:`, {
-        element: element,
-        visible: element.offsetWidth > 0 && element.offsetHeight > 0,
-        classes: element.className,
-        testId: element.getAttribute("data-testid"),
-      });
-    }
-  });
-
-  console.log("=== End Debug ===");
-}
-
-// Make debug function available globally
-window.debugMontara = debugSnowflakeEditor;
 
 // Run initialization when DOM is ready
 if (document.readyState === "loading") {
