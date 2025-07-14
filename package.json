@@ -1,0 +1,24 @@
+{
+  "name": "montara-chrome-extension",
+  "version": "1.0.0",
+  "description": "A Chrome extension skeleton with content scripts only.",
+  "homepage": "https://github.com/montara-io/montara-chrome-extension#readme",
+  "bugs": {
+    "url": "https://github.com/montara-io/montara-chrome-extension/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/montara-io/montara-chrome-extension.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "content.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "typescript": "^5.8.3"
+  }
+}
