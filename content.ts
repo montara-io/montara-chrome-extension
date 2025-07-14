@@ -8,12 +8,13 @@ const MontaraData = {
     CATALOG_DATA: "montara_catalogData",
     MONTARA_TOKEN: "montara_montaraToken",
   },
+  constants: {
+    trigger: "@@",
+    isDebugMode: true,
+  },
   catalogData: [],
   state: {
     isDropdownVisible: false,
-    lastActiveElement: null,
-    lastSelectionStart: null,
-    originalEditorElement: null, // Add this new property to store the original editor
     dropdownContainer: null,
   },
 };
@@ -91,6 +92,9 @@ function showNotification({
   onCtaClick?: () => void;
   duration?: number;
 }) {
+  if (!MontaraData.constants.isDebugMode) {
+    return;
+  }
   const notification = document.createElement("div");
   notification.id = "montara-notification";
   notification.style.cssText = `
@@ -212,10 +216,6 @@ function showDropdown(
   if (!MontaraData.state.dropdownContainer) {
     MontaraData.state.dropdownContainer = createDropdownContainer();
   }
-
-  MontaraData.state.lastActiveElement = activeElement;
-  MontaraData.state.lastSelectionStart = selectionStart ?? null;
-  MontaraData.state.originalEditorElement = activeElement; // Store the original editor element
 
   renderDropdown(MontaraData.catalogData, x, y);
   MontaraData.state.isDropdownVisible = true;
@@ -378,62 +378,18 @@ function renderDropdown(items: any, x: number, y: number) {
   container.appendChild(dropdown);
 }
 
-function insertTextAtCursor(text) {
-  // Use the original editor element instead of lastActiveElement to avoid targeting the dropdown
-  const activeElement =
-    MontaraData.state.originalEditorElement ||
-    MontaraData.state.lastActiveElement;
-  const selectionStart = MontaraData.state.lastSelectionStart;
-
-  if (!activeElement) {
-    console.log("Montara: No active element found for text insertion");
-    return;
-  }
-
-  console.log(
-    "Montara: Attempting to insert text into element:",
-    activeElement
-  );
-
-  // Handle contenteditable elements
-  if (activeElement.contentEditable === "true") {
-    console.log("Montara: Using contenteditable for text insertion");
+function insertTextAtCursor(text: string) {
+  const codeMirrorLine = document.querySelector(".cm-activeLine.cm-line");
+  if (codeMirrorLine) {
+    //replace MontaraData.constants.trigger with text
+    codeMirrorLine.textContent = codeMirrorLine.textContent.replace(
+      MontaraData.constants.trigger,
+      text
+    );
+    //Put the cursor at the end of the text
     const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(document.createTextNode(text));
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
+    selection.setPosition(codeMirrorLine, codeMirrorLine.textContent.length);
   }
-  // Handle textarea elements
-  else if (activeElement instanceof HTMLTextAreaElement) {
-    console.log("Montara: Using textarea for text insertion");
-    const value = activeElement.value;
-    const before = value.substring(0, selectionStart - 2); // Remove the @@ trigger
-    const after = value.substring(selectionStart);
-    activeElement.value = before + text + after;
-    activeElement.setSelectionRange(
-      before.length + text.length,
-      before.length + text.length
-    );
-  }
-  // Handle input elements
-  else if (activeElement instanceof HTMLInputElement) {
-    console.log("Montara: Using input for text insertion");
-    const value = activeElement.value;
-    const before = value.substring(0, selectionStart - 2);
-    const after = value.substring(selectionStart);
-    activeElement.value = before + text + after;
-    activeElement.setSelectionRange(
-      before.length + text.length,
-      before.length + text.length
-    );
-  }
-  // Trigger input event to notify any listeners
-  activeElement.dispatchEvent(new Event("input", {bubbles: true}));
 }
 
 function hideDropdown() {
@@ -441,8 +397,6 @@ function hideDropdown() {
     MontaraData.state.dropdownContainer.innerHTML = "";
   }
   MontaraData.state.isDropdownVisible = false;
-  // Clear the original editor element when dropdown is hidden
-  MontaraData.state.originalEditorElement = null;
 }
 
 function handleClick(event) {
@@ -522,7 +476,7 @@ function checkForTrigger(element: HTMLElement) {
   const beforeCursor = text.substring(0, cursorPosition);
   const lastTwoChars = beforeCursor.slice(-2);
 
-  return lastTwoChars === "@@";
+  return lastTwoChars === MontaraData.constants.trigger;
 }
 
 function getCursorPosition(element: HTMLElement) {
