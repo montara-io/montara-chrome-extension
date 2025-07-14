@@ -11,6 +11,13 @@ const MontaraExtension = {
   constants: {
     trigger: "@@",
     isDebugMode: true,
+    colors: {
+      background: "#fff",
+      border: "#C8C8C8",
+      borderLight: "#F0F0F0",
+      textPrimary: "#353B41",
+      textSecondary: "#737378",
+    },
   },
   catalogData: [],
   state: {
@@ -21,13 +28,9 @@ const MontaraExtension = {
   methods: {
     showNotification({
       text,
-      ctaText,
-      onCtaClick,
       duration = 3000,
     }: {
       text: string;
-      ctaText?: string;
-      onCtaClick?: () => void;
       duration?: number;
     }) {
       if (!MontaraExtension.constants.isDebugMode) {
@@ -39,8 +42,8 @@ const MontaraExtension = {
         position: fixed;
         top: 10px;
         right: 10px;
-        background: #4CAF50;
-        color: white;
+        background: ${MontaraExtension.constants.colors.background};
+        color: ${MontaraExtension.constants.colors.textPrimary};
         padding: 10px 15px;
         border-radius: 5px;
         z-index: 10000;
@@ -68,7 +71,7 @@ const MontaraExtension = {
       closeButton.style.cssText = `
         background: none;
         border: none;
-        color: white;
+        color: ${MontaraExtension.constants.colors.textPrimary};
         font-size: 18px;
         font-weight: bold;
         cursor: pointer;
@@ -98,34 +101,6 @@ const MontaraExtension = {
       });
 
       notification.appendChild(closeButton);
-
-      // Add CTA button if provided
-      if (ctaText && onCtaClick) {
-        const ctaButton = document.createElement("button");
-        ctaButton.textContent = ctaText;
-        ctaButton.style.cssText = `
-          background: rgba(255, 255, 255, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          color: white;
-          padding: 5px 10px;
-          border-radius: 3px;
-          cursor: pointer;
-          font-size: 12px;
-          transition: background-color 0.2s;
-          flex-shrink: 0;
-        `;
-
-        ctaButton.addEventListener("mouseenter", () => {
-          ctaButton.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
-        });
-
-        ctaButton.addEventListener("mouseleave", () => {
-          ctaButton.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
-        });
-
-        ctaButton.addEventListener("click", onCtaClick);
-        notification.appendChild(ctaButton);
-      }
 
       document.body.appendChild(notification);
 
@@ -220,10 +195,11 @@ const MontaraExtension = {
 
       if (filteredItems.length === 0) {
         const noResults = document.createElement("div");
+        noResults.className = "montara-dropdown-no-results";
         noResults.style.cssText = `
           padding: 1rem;
           text-align: center;
-          color: #666;
+          color: ${MontaraExtension.constants.colors.textSecondary};
           font-style: italic;
         `;
         if (!MontaraExtension.catalogData.length) {
@@ -237,16 +213,17 @@ const MontaraExtension = {
 
       filteredItems.forEach((item) => {
         const itemElement = document.createElement("div");
+        itemElement.className = "montara-dropdown-item";
         itemElement.style.cssText = `
-          padding: 12px 16px;
+          padding: 0.5rem;
           cursor: pointer;
-          border-bottom: 1px solid #f0f0f0;
+          border-bottom: 1px solid ${MontaraExtension.constants.colors.borderLight};
           transition: background-color 0.2s;
         `;
 
         itemElement.innerHTML = `
-          <div style="font-weight: 500; color: #333; margin-bottom: 4px;">${item.name}</div>
-          <div style="font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: #666; background: #f5f5f5; padding: 4px 6px; border-radius: 4px; overflow-x: auto;">${item.code}</div>
+          <div style="font-weight: 500; color: ${MontaraExtension.constants.colors.textPrimary}; margin-bottom: 4px;">${item.name}</div>
+          <div style="font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: ${MontaraExtension.constants.colors.textSecondary}; background: ${MontaraExtension.constants.colors.background}; padding: 4px 6px; border-radius: 4px; overflow-x: auto;">${item.code}</div>
         `;
 
         itemElement.addEventListener("mouseenter", () => {
@@ -271,39 +248,42 @@ const MontaraExtension = {
 
       const dropdown = document.createElement("div");
       dropdown.id = "montara-dropdown";
+      dropdown.className = "montara-dropdown";
       dropdown.style.cssText = `
         position: fixed;
         left: ${x}px;
         top: ${y}px;
-        background: white;
-        border: 1px solid #ddd;
+        background: ${MontaraExtension.constants.colors.background};
+        border: 1px solid ${MontaraExtension.constants.colors.border};
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         z-index: 10001;
         width: 30rem;
-        max-height: 400px;
+        max-height: 40rem;
         overflow-y: auto;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
       `;
 
       const header = document.createElement("div");
+      header.className = "montara-dropdown-header";
       header.style.cssText = `
-        padding: 12px 16px;
-        border-bottom: 1px solid #eee;
+        padding: 1rem;
+        border-bottom: 1px solid ${MontaraExtension.constants.colors.border};
         font-weight: 600;
         color: #333;
-        background: #f8f9fa;
+        background: ${MontaraExtension.constants.colors.background};
         border-radius: 8px 8px 0 0;
       `;
-      header.textContent = "Insert SQL";
+      header.textContent = "Insert SQL from Montara";
       dropdown.appendChild(header);
 
       // Add search input
       const searchContainer = document.createElement("div");
+      searchContainer.className = "montara-dropdown-search-container";
       searchContainer.style.cssText = `
-        padding: 8px 16px;
-        border-bottom: 1px solid #eee;
+        padding: 1rem;
+        border-bottom: 1px solid ${MontaraExtension.constants.colors.border};
       `;
 
       const searchInput = document.createElement("input");
@@ -311,23 +291,27 @@ const MontaraExtension = {
       searchInput.placeholder = "Search models and code...";
       searchInput.style.cssText = `
         width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #ddd;
+        padding: 0.5rem;
+        border: 1px solid ${MontaraExtension.constants.colors.border};
+        background: ${MontaraExtension.constants.colors.background};
         border-radius: 4px;
         font-size: 14px;
         font-family: inherit;
         outline: none;
         box-sizing: border-box;
+        color: ${MontaraExtension.constants.colors.textPrimary};
       `;
 
       // Add focus styles
       searchInput.addEventListener("focus", () => {
-        searchInput.style.borderColor = "#007bff";
-        searchInput.style.boxShadow = "0 0 0 2px rgba(0, 123, 255, 0.25)";
+        searchInput.style.borderColor =
+          MontaraExtension.constants.colors.border;
+        searchInput.style.boxShadow = `0 0 0 1px ${MontaraExtension.constants.colors.border}`;
       });
 
       searchInput.addEventListener("blur", () => {
-        searchInput.style.borderColor = "#ddd";
+        searchInput.style.borderColor =
+          MontaraExtension.constants.colors.border;
         searchInput.style.boxShadow = "none";
       });
 
@@ -335,8 +319,10 @@ const MontaraExtension = {
       dropdown.appendChild(searchContainer);
 
       MontaraExtension.state.itemsList = document.createElement("div");
+      MontaraExtension.state.itemsList.className =
+        "montara-dropdown-items-list";
       MontaraExtension.state.itemsList.style.cssText = `
-        padding: 8px 0;
+        padding: 0.5rem;
       `;
 
       // Initial render
@@ -385,17 +371,17 @@ const MontaraExtension = {
       return container;
     },
     subscribeToDropdownEvents() {
-      document.addEventListener("click", this.handleClick);
+      document.addEventListener("click", this.handleClick.bind(this));
       document.addEventListener("keydown", (event: KeyboardEvent) => {
         if (
           event.key === "Escape" &&
           MontaraExtension.state.isDropdownVisible
         ) {
-          this.hideDropdown();
+          MontaraExtension.methods.hideDropdown();
         }
         if (checkForTrigger(event.target as HTMLElement)) {
           const position = getCursorPosition(event.target as HTMLElement);
-          this.showDropdown(
+          MontaraExtension.methods.showDropdown(
             position.x,
             position.y,
             event.target as HTMLElement,
