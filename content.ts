@@ -142,12 +142,14 @@ const MontaraExtension = {
         this.handleIframeMessage.bind(this) as EventListener
       );
     },
-    handleIframeMessage(event: MessageEvent) {
+    async handleIframeMessage(event: MessageEvent) {
       if (!event?.data?.type) {
         return;
       }
       switch (event.data.type) {
         case MontaraExtension.PostMessageType.MISSING_MONTARA_TOKEN:
+          // Get the latest token from storage
+          await this.initializeToken();
           this.sendMessageToIframe({
             type: MontaraExtension.PostMessageType.MONTARA_TOKEN,
             payload: {
@@ -466,8 +468,30 @@ const MontaraExtension = {
       }
       MontaraExtension.state.isDropdownVisible = false;
     },
+    async initializeToken() {
+      try {
+        const result = await chrome.storage.local.get(["montaraToken"]);
+        if (result.montaraToken && result.montaraToken.token) {
+          MontaraExtension.montaraToken = result.montaraToken.token;
+          this.showNotification({
+            text: "Token loaded from storage",
+            duration: 3000,
+          });
+        } else {
+          this.showNotification({
+            text: "No token found in storage",
+            duration: 3000,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading token:", error);
+      }
+    },
     initializeExtension() {
       console.log("Montara Chrome Extension loaded");
+
+      // Initialize token from storage
+      this.initializeToken();
 
       // Add your content script logic here
       // Example: Modify page content, add event listeners, etc.

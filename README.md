@@ -5,6 +5,8 @@ A Chrome extension skeleton with content scripts only.
 ## Features
 
 - Content scripts that run on all web pages
+- Settings popup for API token configuration
+- Token storage using Chrome's local storage
 - Simple notification system
 - Message handling for communication with other extension parts
 - Responsive design
@@ -23,6 +25,13 @@ Once installed, the extension will:
 - Log "Montara Chrome Extension loaded" to the console
 - Be ready to handle messages from other extension parts
 
+### Configuring API Token
+
+1. Click on the Montara extension icon in your browser toolbar
+2. Enter your Montara API token in the settings popup
+3. Click "Save Token" to store it securely
+4. The token will be automatically used by the extension for API calls
+
 ## File Structure
 
 ```
@@ -30,6 +39,8 @@ montara-chrome-extension/
 ├── manifest.json      # Extension configuration
 ├── content.js         # Main content script
 ├── content.css        # Styles for extension elements
+├── popup.html         # Settings popup interface
+├── popup.js           # Settings popup functionality
 ├── icons/             # Extension icons (placeholder)
 └── README.md          # This file
 ```
@@ -63,6 +74,7 @@ Edit `content.css` to customize the appearance of extension elements. The file i
 
 The extension currently requests:
 - `activeTab`: Access to the currently active tab
+- `storage`: Access to Chrome's local storage for token persistence
 
 Add more permissions to `manifest.json` as needed for your specific functionality.
 

@@ -6,7 +6,8 @@
     "rootDir": "."
   },
   "include": [
-    "content.ts"
+    "content.ts",
+    "popup.ts"
   ],
   "exclude": [
     "node_modules"
