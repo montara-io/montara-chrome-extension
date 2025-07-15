@@ -93,7 +93,9 @@ function saveToken(): void {
 
   setStoredToken(token).then((success) => {
     if (success) {
-      showStatus("Token saved successfully!");
+      showStatus(
+        "Token saved successfully! Reload the page to apply the changes."
+      );
       tokenInput.value = token;
     } else {
       showStatus("Failed to save token. Please try again.", false);
