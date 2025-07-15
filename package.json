@@ -16,9 +16,11 @@
   "main": "content.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "publish": "node scripts/publish.js"
   },
   "dependencies": {
+    "adm-zip": "^0.5.15",
     "typescript": "^5.8.3"
   }
 }
