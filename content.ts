@@ -7,6 +7,7 @@ const MontaraExtension = {
     MISSING_MONTARA_TOKEN: "montara_missingMontaraToken",
     CATALOG_DATA: "montara_catalogData",
     MONTARA_TOKEN: "montara_montaraToken",
+    INVALID_MONTARA_TOKEN: "montara_invalidMontaraToken",
   },
   constants: {
     trigger: "@@",
@@ -31,11 +32,13 @@ const MontaraExtension = {
     showNotification({
       text,
       duration = 3000,
+      alwaysShow = false,
     }: {
       text: string;
       duration?: number;
+      alwaysShow?: boolean;
     }) {
-      if (!MontaraExtension.constants.isDebugMode) {
+      if (!alwaysShow && !MontaraExtension.constants.isDebugMode) {
         return;
       }
       const notification = document.createElement("div");
@@ -117,7 +120,7 @@ const MontaraExtension = {
     },
     renderMontaraIframe() {
       const iframe = document.createElement("iframe");
-      iframe.src = "http://localhost:3000/montara-chrome-extention-sidebar";
+      iframe.src = "http://localhost:3000/montara-chrome-extension-sidebar";
       iframe.id = "montara-iframe";
       iframe.style.cssText = `
         position: fixed;
@@ -162,6 +165,13 @@ const MontaraExtension = {
           this.showNotification({
             text: "Catalog data received",
             duration: 3000,
+          });
+          break;
+        case MontaraExtension.PostMessageType.INVALID_MONTARA_TOKEN:
+          this.showNotification({
+            text: "Invalid token, please check your token in the extension settings",
+            duration: 30000,
+            alwaysShow: true,
           });
           break;
       }
@@ -474,7 +484,7 @@ const MontaraExtension = {
         if (result.montaraToken && result.montaraToken.token) {
           MontaraExtension.montaraToken = result.montaraToken.token;
           this.showNotification({
-            text: "Token loaded from storage",
+            text: "Token loaded from storage: " + result.montaraToken.token,
             duration: 3000,
           });
         } else {
@@ -487,18 +497,12 @@ const MontaraExtension = {
         console.error("Error loading token:", error);
       }
     },
-    initializeExtension() {
+    async initializeExtension() {
       console.log("Montara Chrome Extension loaded");
 
       // Initialize token from storage
-      this.initializeToken();
+      await this.initializeToken();
 
-      // Add your content script logic here
-      // Example: Modify page content, add event listeners, etc.
-      this.showNotification({
-        text: "Montara Extension Active",
-        duration: 3000,
-      });
       this.renderMontaraIframe();
       this.subscribeToDropdownEvents();
     },
