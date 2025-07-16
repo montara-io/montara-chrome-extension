@@ -17,7 +17,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "tsc --watch",
-    "publish": "node scripts/publish.js"
+    "publish": " tsc && node scripts/publish.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.15",
