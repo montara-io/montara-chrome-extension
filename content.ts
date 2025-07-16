@@ -20,12 +20,17 @@ const MontaraExtension = {
       textPrimary: "#353B41",
       textSecondary: "#737378",
     },
+    URLS: {
+      PRODUCTION: "https://app.montara.io",
+      LOCAL: "http://localhost:3000",
+    },
   },
   catalogData: [],
   state: {
     isDropdownVisible: false,
     dropdownContainer: null,
     itemsList: null,
+    isProduction: true,
   },
   methods: {
     showNotification({
@@ -119,7 +124,11 @@ const MontaraExtension = {
     },
     renderMontaraIframe() {
       const iframe = document.createElement("iframe");
-      iframe.src = "http://localhost:3000/montara-chrome-extension-sidebar";
+      iframe.src = `${
+        MontaraExtension.state.isProduction
+          ? MontaraExtension.constants.URLS.PRODUCTION
+          : MontaraExtension.constants.URLS.LOCAL
+      }/montara-chrome-extension-sidebar`;
       iframe.id = "montara-iframe";
       iframe.style.cssText = `
         position: fixed;
