@@ -1,10 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Montara Chrome Extension",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A Chrome extension with content scripts",
   "permissions": [
-    "activeTab",
     "storage"
   ],
   "content_scripts": [
