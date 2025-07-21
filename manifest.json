@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Montara Chrome Extension",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "A Chrome extension with content scripts",
   "permissions": [
     "storage"
+  ],
+  "host_permissions": [
+    "*://*.snowflakecomputing.com/*",
+    "*://*.snowflake.com/*"
   ],
   "content_scripts": [
     {

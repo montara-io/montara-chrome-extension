@@ -9,7 +9,13 @@ const zip = new AdmZip();
 const projectRoot = path.join(__dirname, "..");
 
 // Add the main extension files
-const filesToInclude = ["manifest.json", "content.js", "content.css"];
+const filesToInclude = [
+  "manifest.json",
+  "content.js",
+  "content.css",
+  "popup.html",
+  "popup.js",
+];
 
 // Add each file to the zip
 filesToInclude.forEach((file) => {
