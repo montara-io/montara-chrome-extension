@@ -10,7 +10,7 @@ const MontaraExtension = {
   },
   constants: {
     trigger: "@@",
-    isDebugMode: true,
+    isDebugMode: false,
     montaraLogoUrl:
       "https://montara.io/wp-content/uploads/2025/03/montara_logo_MEDIUM.png",
     colors: {
@@ -19,6 +19,9 @@ const MontaraExtension = {
       borderLight: "#F0F0F0",
       textPrimary: "#353B41",
       textSecondary: "#737378",
+    },
+    icons: {
+      box: '<svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-box-icon lucide-box"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>',
     },
     URLS: {
       PRODUCTION: "https://app.montara.io",
@@ -237,9 +240,21 @@ const MontaraExtension = {
           border-bottom: 1px solid ${MontaraExtension.constants.colors.borderLight};
           transition: background-color 0.2s;
         `;
+        // Add hover effect
+        itemElement.addEventListener("mouseenter", () => {
+          itemElement.style.backgroundColor =
+            MontaraExtension.constants.colors.borderLight;
+        });
+        itemElement.addEventListener("mouseleave", () => {
+          itemElement.style.backgroundColor =
+            MontaraExtension.constants.colors.background;
+        });
         const croppedCode = item.code.slice(0, 150) + "...";
         itemElement.innerHTML = `
-          <div style="font-weight: 500; color: ${MontaraExtension.constants.colors.textPrimary}; margin-bottom: 4px;">${item.name}</div>
+          <div style="display: flex; align-items: center; gap: 0.25rem; font-weight: 500; color: ${MontaraExtension.constants.colors.textPrimary}; margin-bottom: 4px;">
+            <span style="display: flex; align-items: center;">${MontaraExtension.constants.icons.box}</span>
+            <span>${item.name}</span>
+          </div>
           <div style="font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: ${MontaraExtension.constants.colors.textSecondary}; background: ${MontaraExtension.constants.colors.background}; padding: 4px 6px; border-radius: 4px; overflow-x: auto;">${croppedCode}</div>
         `;
 
