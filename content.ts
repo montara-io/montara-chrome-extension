@@ -30,7 +30,7 @@ const MontaraExtension = {
     isDropdownVisible: false,
     dropdownContainer: null,
     itemsList: null,
-    isProduction: true,
+    isProduction: false,
   },
   methods: {
     showNotification({
@@ -369,11 +369,41 @@ const MontaraExtension = {
           return;
         }
 
-        const filteredItems = items.filter(
-          (item) =>
-            item.name.toLowerCase().includes(searchTerm) ||
-            item.code.toLowerCase().includes(searchTerm)
-        );
+        const filteredItems = items
+          .filter((item) => {
+            const nameScore = this.fuzzySearch(
+              searchTerm,
+              item.name.toLowerCase()
+            );
+            const codeScore = this.fuzzySearch(
+              searchTerm,
+              item.code.toLowerCase()
+            );
+            return nameScore > 0 || codeScore > 0;
+          })
+          .sort((a, b) => {
+            const aNameScore = this.fuzzySearch(
+              searchTerm,
+              a.name.toLowerCase()
+            );
+            const aCodeScore = this.fuzzySearch(
+              searchTerm,
+              a.code.toLowerCase()
+            );
+            const bNameScore = this.fuzzySearch(
+              searchTerm,
+              b.name.toLowerCase()
+            );
+            const bCodeScore = this.fuzzySearch(
+              searchTerm,
+              b.code.toLowerCase()
+            );
+
+            const aMaxScore = Math.max(aNameScore, aCodeScore);
+            const bMaxScore = Math.max(bNameScore, bCodeScore);
+
+            return bMaxScore - aMaxScore; // Sort by score descending
+          });
 
         this.renderFilteredItems(filteredItems);
       });
@@ -475,6 +505,54 @@ const MontaraExtension = {
         MontaraExtension.state.dropdownContainer.innerHTML = "";
       }
       MontaraExtension.state.isDropdownVisible = false;
+    },
+    fuzzySearch(searchTerm: string, text: string): number {
+      if (!searchTerm || !text) return 0;
+
+      const searchChars = searchTerm.split("");
+      const textChars = text.split("");
+
+      let searchIndex = 0;
+      let textIndex = 0;
+      let score = 0;
+      let consecutiveBonus = 0;
+      let lastMatchIndex = -1;
+
+      while (searchIndex < searchChars.length && textIndex < textChars.length) {
+        if (searchChars[searchIndex] === textChars[textIndex]) {
+          // Base score for matching character
+          score += 1;
+
+          // Bonus for consecutive matches
+          if (lastMatchIndex === textIndex - 1) {
+            consecutiveBonus += 0.5;
+          }
+
+          // Bonus for matching at word boundaries (start of word)
+          if (
+            textIndex === 0 ||
+            textChars[textIndex - 1] === " " ||
+            textChars[textIndex - 1] === "_" ||
+            textChars[textIndex - 1] === "-"
+          ) {
+            score += 0.5;
+          }
+
+          lastMatchIndex = textIndex;
+          searchIndex++;
+        }
+        textIndex++;
+      }
+
+      // If we found all search characters, calculate final score
+      if (searchIndex === searchChars.length) {
+        const totalScore = score + consecutiveBonus;
+        // Normalize score based on search term length and text length
+        const normalizedScore = totalScore / Math.max(searchTerm.length, 1);
+        return normalizedScore;
+      }
+
+      return 0; // Not all search characters found
     },
     async initializeToken() {
       try {
