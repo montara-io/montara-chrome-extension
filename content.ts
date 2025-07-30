@@ -1,5 +1,3 @@
-// Content script for Montara Chrome Extension
-// This script runs on every webpage
 const MontaraExtension = {
   montaraToken: null,
   PostMessageType: {
@@ -33,7 +31,7 @@ const MontaraExtension = {
     isDropdownVisible: false,
     dropdownContainer: null,
     itemsList: null,
-    isProduction: false,
+    isProduction: true,
   },
   methods: {
     showNotification({
